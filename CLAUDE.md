@@ -4,7 +4,8 @@ Personal Japanese-study iPadOS app. SwiftUI, iPadOS 26+ only, single target, zer
 
 ## Architecture (locked-in decisions)
 
-- **Translation + furigana:** one round-trip to the Anthropic Messages API (`claude-sonnet-4-6`) via plain `URLSession`. The system prompt in `TranslationService.swift` instructs Claude to return strict JSON: `{ furigana: [{text, reading?}], translation }`. Segmentation rules (kanji-only segments, okurigana split off, hiragana readings only) are pinned in that prompt with a worked example.
+- **Translation + furigana + per-word definitions:** one round-trip to the Anthropic Messages API (`claude-sonnet-4-6`) via plain `URLSession`. The system prompt in `TranslationService.swift` instructs Claude to return strict JSON: `{ words: [{text, reading, furigana: [{text, reading?}], definition?}], translation }`. Each word carries its full hiragana reading, the per-segment furigana for display, and a contextual English definition. Punctuation has `definition: null`. Segmentation rules (kanji-only furigana segments, okurigana split off, hiragana readings only) are pinned in the prompt with a worked example.
+- **Tap-to-define:** every word in the Japanese display is a `Button` in `FuriganaText`. Tapping opens `WordDefinitionView` as a medium-detent sheet showing the word, kana reading, and English definition. Definitions are pre-fetched in the translation call, so the sheet opens instantly.
 - **API key storage:** iOS Keychain (`kSecClassGenericPassword`, service `com.terrydonaghe.NihongoPro`, account `anthropic-api-key`). Entered in-app on first launch via `SettingsView`; re-openable via gear icon. No xcconfig/Secrets file.
 - **Dependencies:** none. Foundation + SwiftUI + Security only. No SPM, no CocoaPods.
 - **Trigger:** Translate button (not auto-on-paste).
@@ -18,8 +19,9 @@ NihongoPro/
   NihongoProApp.swift       @main App entry
   ContentView.swift         Paste area, Translate button, FuriganaText display, English translation
   SettingsView.swift        API-key sheet (first-launch + gear icon)
-  TranslationService.swift  Anthropic client + FuriganaSegment/TranslationResult/TranslationError types + system prompt
-  FuriganaText.swift        SwiftUI view + FuriganaFlowLayout (custom Layout for wrapping kanji-with-reading)
+  TranslationService.swift  Anthropic client + Word/FuriganaSegment/TranslationResult/TranslationError types + system prompt
+  FuriganaText.swift        SwiftUI view + WordView + FuriganaFlowLayout (custom Layout). Each word is a tappable Button.
+  WordDefinitionView.swift  Sheet content showing word / kana reading / definition
   KeychainStore.swift       Wrapper around SecItem* APIs
   Info.plist                Bundle metadata, iPad orientations
   Assets.xcassets/          AppIcon + AccentColor placeholders
@@ -50,14 +52,15 @@ The pbxproj uses readable sequential IDs of the form `FA00000000000000000000{XY}
 6. Rebuild with the xcodebuild command above.
 
 Existing IDs in use:
-- `A1`–`A5`: Swift source files; `A6`: Info.plist; `A7`: Assets.xcassets; `A8`: FuriganaText.swift
-- `B1`–`B5`, `B7`–`B8`: matching PBXBuildFile entries
+- `A1`–`A5`: Swift source files; `A6`: Info.plist; `A7`: Assets.xcassets; `A8`: FuriganaText.swift; `A9`: WordDefinitionView.swift
+- `B1`–`B5`, `B7`–`B9`: matching PBXBuildFile entries
 - `C1`: app product; `D0`–`D2`: groups; `E1`–`E3`: build phases; `F00`/`F1`: project/target; `101`–`104`, `111`–`112`: configs
 
 ## Tuning behavior
 
 - **Translation/furigana quality:** edit the `systemPrompt` constant in `TranslationService.swift`. Keep the example sentence — it reliably anchors the segmentation behavior.
-- **Furigana display:** `FuriganaText` view exposes `baseFont`, `rubyFont`, `rubyColor`, `segmentSpacing`, `lineSpacing` parameters. The flow-wrap logic is `FuriganaFlowLayout` in the same file.
+- **Furigana display:** `FuriganaText` view exposes `baseFont`, `rubyFont`, `rubyColor`, `wordSpacing`, `lineSpacing`, and `onWordTap` parameters. Each word is wrapped in a `Button` and disabled when `definition == nil` (punctuation). The flow-wrap logic is `FuriganaFlowLayout` in the same file. Note: wrapping words in `Button` removes per-character text selection on the Japanese display in exchange for tap-to-define; the English translation below remains selectable.
+- **Definition sheet:** `WordDefinitionView` is a small SwiftUI view shown via `.sheet(item:)` with `.presentationDetents([.medium, .large])`. The selection state lives in `ContentView.selectedWord: WordSelection?` (a UUID-id wrapper around `Word` so `.sheet(item:)` works even when the same word appears twice).
 - **Model:** `TranslationService.model` constant. Sonnet 4.6 is the chosen balance; Haiku is cheaper but weaker on idiomatic readings, Opus is overkill for sentence-level.
 
 ## Maintenance rule

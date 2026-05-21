@@ -1,34 +1,57 @@
 import SwiftUI
 
 struct FuriganaText: View {
-    let segments: [FuriganaSegment]
+    let words: [Word]
     var baseFont: Font = .system(size: 44, weight: .regular, design: .serif)
     var rubyFont: Font = .system(size: 18, weight: .regular, design: .serif)
     var rubyColor: Color = .secondary
-    var segmentSpacing: CGFloat = 1
+    var wordSpacing: CGFloat = 4
     var lineSpacing: CGFloat = 14
+    var onWordTap: (Word) -> Void = { _ in }
 
     var body: some View {
-        FuriganaFlowLayout(spacing: segmentSpacing, lineSpacing: lineSpacing) {
-            ForEach(segments.indices, id: \.self) { index in
-                let segment = segments[index]
-                VStack(spacing: 2) {
-                    Text(segment.reading ?? " ")
-                        .font(rubyFont)
-                        .foregroundStyle(rubyColor)
-                        .opacity(segment.reading == nil ? 0 : 1)
-                    Text(segment.text)
-                        .font(baseFont)
-                        .textSelection(.enabled)
+        FuriganaFlowLayout(spacing: wordSpacing, lineSpacing: lineSpacing) {
+            ForEach(words.indices, id: \.self) { index in
+                let word = words[index]
+                Button {
+                    onWordTap(word)
+                } label: {
+                    WordView(word: word, baseFont: baseFont, rubyFont: rubyFont, rubyColor: rubyColor)
                 }
-                .fixedSize()
+                .buttonStyle(.plain)
+                .disabled(word.definition == nil)
             }
         }
     }
 }
 
+private struct WordView: View {
+    let word: Word
+    let baseFont: Font
+    let rubyFont: Font
+    let rubyColor: Color
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(word.furigana.indices, id: \.self) { i in
+                let seg = word.furigana[i]
+                VStack(spacing: 2) {
+                    Text(seg.reading ?? " ")
+                        .font(rubyFont)
+                        .foregroundStyle(rubyColor)
+                        .opacity(seg.reading == nil ? 0 : 1)
+                    Text(seg.text)
+                        .font(baseFont)
+                }
+                .fixedSize()
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
 struct FuriganaFlowLayout: Layout {
-    var spacing: CGFloat = 1
+    var spacing: CGFloat = 4
     var lineSpacing: CGFloat = 14
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

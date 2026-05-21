@@ -5,8 +5,15 @@ struct FuriganaSegment: Decodable {
     let reading: String?
 }
 
+struct Word: Decodable {
+    let text: String
+    let reading: String
+    let furigana: [FuriganaSegment]
+    let definition: String?
+}
+
 struct TranslationResult {
-    let segments: [FuriganaSegment]
+    let words: [Word]
     let englishTranslation: String
 }
 
@@ -42,20 +49,22 @@ struct TranslationService {
 
     The JSON has two fields:
 
-    "furigana": an array of segments that, when their "text" values are concatenated in order, reproduce the input exactly (including punctuation and whitespace). Each segment is:
-      - "text": a substring of the input
-      - "reading": if "text" consists entirely of kanji (CJK ideographs), the hiragana pronunciation of those kanji in context; otherwise null
+    "words": an array of word objects covering the entire input in order. Concatenating each word's "text" must reproduce the input exactly (including punctuation and whitespace). Each word object has:
+      - "text": the surface form of the word as written (e.g., "今日", "良い", "は", "。")
+      - "reading": the full hiragana reading of the word (always provided; for words with no kanji, this equals "text")
+      - "furigana": an array of {text, reading} display segments for the word. "reading" is the hiragana reading for kanji-only segments and null for kana/punctuation segments. Concatenating the segments' "text" must equal the word's "text".
+      - "definition": a concise English definition of the word in this context (1-2 phrases, e.g., "today", "good, fine", "topic-marking particle"). Use null only for pure punctuation marks.
 
     Segmentation rules:
-      - Group consecutive kanji that form a single word together (e.g., "天気" is one segment, not two)
-      - Kanji segments contain ONLY kanji — okurigana (the kana that follows a kanji root) goes in its own segment with reading=null
-      - Hiragana, katakana, punctuation, and whitespace each get their own segment(s) with reading=null
-      - Readings must be hiragana only (no katakana, no romaji)
+      - Treat each grammatical word as one entry: nouns, verbs (including fully conjugated forms), adjectives, particles (は, が, を, に, etc.), copulas (です, だ), auxiliary verbs, etc.
+      - Within a word, split furigana segments so kanji-only and kana-only portions are separate (e.g., 良い -> [{text:"良", reading:"よ"}, {text:"い", reading:null}]).
+      - Whitespace and punctuation each get their own word entry with definition:null.
+      - Readings must be hiragana only (no katakana, no romaji).
 
     "translation": a natural, fluent English translation of the full sentence.
 
     Example for input "今日は良い天気ですね。":
-    {"furigana":[{"text":"今日","reading":"きょう"},{"text":"は","reading":null},{"text":"良","reading":"よ"},{"text":"い","reading":null},{"text":"天気","reading":"てんき"},{"text":"ですね。","reading":null}],"translation":"It's nice weather today, isn't it?"}
+    {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}],"definition":"today"},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}],"definition":"topic-marking particle"},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}],"definition":"good, fine"},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}],"definition":"weather"},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}],"definition":"polite copula (\\"is/are\\")"},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}],"definition":"sentence-final particle seeking agreement (\\"isn't it?\\")"},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}],"definition":null}],"translation":"It's nice weather today, isn't it?"}
     """
 
     func analyze(_ japanese: String) async throws -> TranslationResult {
@@ -71,7 +80,7 @@ struct TranslationService {
 
         let payload = MessagesRequest(
             model: Self.model,
-            maxTokens: 2048,
+            maxTokens: 4096,
             system: Self.systemPrompt,
             messages: [.init(role: "user", content: japanese)]
         )
@@ -115,7 +124,7 @@ struct TranslationService {
         do {
             let analysis = try JSONDecoder().decode(AnalysisResponse.self, from: jsonData)
             let trimmedTranslation = analysis.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-            return TranslationResult(segments: analysis.furigana, englishTranslation: trimmedTranslation)
+            return TranslationResult(words: analysis.words, englishTranslation: trimmedTranslation)
         } catch {
             throw TranslationError.invalidResponseFormat(error.localizedDescription)
         }
@@ -164,7 +173,7 @@ private struct MessagesResponse: Decodable {
 }
 
 private struct AnalysisResponse: Decodable {
-    let furigana: [FuriganaSegment]
+    let words: [Word]
     let translation: String
 }
 

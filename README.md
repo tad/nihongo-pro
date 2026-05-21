@@ -31,6 +31,7 @@ The Settings sheet appears automatically. Paste your Anthropic API key (starts w
 1. Paste a Japanese sentence into the text box at the bottom.
 2. Tap **Translate**. A *Waiting on Claude…* indicator appears while the request is in flight (usually a second or two).
 3. The sentence appears at the top with small hiragana **furigana** above each kanji segment. A natural English translation sits below.
+4. **Tap any word** in the Japanese sentence to open a definition sheet with its kana reading and an English meaning. Drag the sheet down or tap *Done* to dismiss.
 
 Example input:
 ```
@@ -49,7 +50,8 @@ Example output:
 
 - **Paste-and-translate** Japanese → English with one tap
 - **Furigana** rendered above kanji segments, with kanji compounds kept together
-- **Selectable** Japanese and English output (long-press to copy individual characters or full phrases)
+- **Tap any word** in the Japanese display to see its kana reading and a contextual English definition in a bottom sheet
+- **Selectable** English translation (long-press to copy)
 - **In-app API-key management** via the gear icon, with Keychain storage
 
 ## Tech stack

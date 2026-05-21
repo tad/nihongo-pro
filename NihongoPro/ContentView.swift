@@ -1,12 +1,18 @@
 import SwiftUI
 
+private struct WordSelection: Identifiable {
+    let id = UUID()
+    let word: Word
+}
+
 struct ContentView: View {
     @State private var inputText: String = ""
-    @State private var furiganaSegments: [FuriganaSegment] = []
+    @State private var words: [Word] = []
     @State private var englishTranslation: String = ""
     @State private var isTranslating: Bool = false
     @State private var errorMessage: String?
     @State private var showingSettings: Bool = false
+    @State private var selectedWord: WordSelection?
 
     private let translator = TranslationService()
 
@@ -34,6 +40,11 @@ struct ContentView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
+            .sheet(item: $selectedWord) { selection in
+                WordDefinitionView(word: selection.word)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
             .onAppear {
                 if KeychainStore.read() == nil {
                     showingSettings = true
@@ -54,15 +65,17 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 60)
-            } else if furiganaSegments.isEmpty {
+            } else if words.isEmpty {
                 Text("Paste a Japanese sentence below and tap Translate.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
             } else {
-                FuriganaText(segments: furiganaSegments)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                FuriganaText(words: words) { word in
+                    selectedWord = WordSelection(word: word)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !englishTranslation.isEmpty {
                     Divider()
@@ -143,12 +156,12 @@ struct ContentView: View {
 
         isTranslating = true
         errorMessage = nil
-        furiganaSegments = []
+        words = []
         englishTranslation = ""
 
         do {
             let result = try await translator.analyze(trimmed)
-            furiganaSegments = result.segments
+            words = result.words
             englishTranslation = result.englishTranslation
         } catch let error as TranslationError {
             errorMessage = error.errorDescription
