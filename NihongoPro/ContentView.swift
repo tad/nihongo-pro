@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var inputText: String = ""
-    @State private var japaneseSentence: String = ""
+    @State private var furiganaSegments: [FuriganaSegment] = []
     @State private var englishTranslation: String = ""
     @State private var isTranslating: Bool = false
     @State private var errorMessage: String?
@@ -13,8 +13,10 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                translationDisplay
-                Spacer(minLength: 0)
+                ScrollView {
+                    translationDisplay
+                }
+                .frame(maxHeight: .infinity)
                 inputArea
             }
             .padding(32)
@@ -42,26 +44,36 @@ struct ContentView: View {
 
     private var translationDisplay: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if japaneseSentence.isEmpty {
+            if isTranslating {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text("Waiting on Claude…")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 60)
+            } else if furiganaSegments.isEmpty {
                 Text("Paste a Japanese sentence below and tap Translate.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
             } else {
-                Text(japaneseSentence)
-                    .font(.system(size: 44, weight: .regular, design: .serif))
-                    .lineSpacing(8)
-                    .textSelection(.enabled)
+                FuriganaText(segments: furiganaSegments)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider()
+                if !englishTranslation.isEmpty {
+                    Divider()
 
-                Text(englishTranslation)
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(englishTranslation)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -131,12 +143,13 @@ struct ContentView: View {
 
         isTranslating = true
         errorMessage = nil
-        japaneseSentence = trimmed
+        furiganaSegments = []
         englishTranslation = ""
 
         do {
-            let result = try await translator.translate(trimmed)
-            englishTranslation = result
+            let result = try await translator.analyze(trimmed)
+            furiganaSegments = result.segments
+            englishTranslation = result.englishTranslation
         } catch let error as TranslationError {
             errorMessage = error.errorDescription
         } catch {

@@ -13,6 +13,7 @@
 		FA00000000000000000000B4 /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000A4 /* TranslationService.swift */; };
 		FA00000000000000000000B5 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000A5 /* KeychainStore.swift */; };
 		FA00000000000000000000B7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000A7 /* Assets.xcassets */; };
+		FA00000000000000000000B8 /* FuriganaText.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000A8 /* FuriganaText.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +24,7 @@
 		FA00000000000000000000A5 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		FA00000000000000000000A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FA00000000000000000000A7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FA00000000000000000000A8 /* FuriganaText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuriganaText.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -53,6 +55,7 @@
 				FA00000000000000000000A3 /* SettingsView.swift */,
 				FA00000000000000000000A4 /* TranslationService.swift */,
 				FA00000000000000000000A5 /* KeychainStore.swift */,
+				FA00000000000000000000A8 /* FuriganaText.swift */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -142,6 +145,7 @@
 				FA00000000000000000000B1 /* NihongoProApp.swift in Sources */,
 				FA00000000000000000000B3 /* SettingsView.swift in Sources */,
 				FA00000000000000000000B4 /* TranslationService.swift in Sources */,
+				FA00000000000000000000B8 /* FuriganaText.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

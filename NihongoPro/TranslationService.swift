@@ -1,10 +1,21 @@
 import Foundation
 
+struct FuriganaSegment: Decodable {
+    let text: String
+    let reading: String?
+}
+
+struct TranslationResult {
+    let segments: [FuriganaSegment]
+    let englishTranslation: String
+}
+
 enum TranslationError: LocalizedError {
     case missingAPIKey
     case network(Error)
     case apiError(status: Int, message: String)
     case decodingFailed
+    case invalidResponseFormat(String)
 
     var errorDescription: String? {
         switch self {
@@ -15,7 +26,9 @@ enum TranslationError: LocalizedError {
         case .apiError(let status, let message):
             return "API error (\(status)): \(message)"
         case .decodingFailed:
-            return "Couldn't read the translation response."
+            return "Couldn't read the response from Anthropic."
+        case .invalidResponseFormat(let detail):
+            return "Couldn't parse the model's JSON response: \(detail)"
         }
     }
 }
@@ -25,11 +38,27 @@ struct TranslationService {
     private static let model = "claude-sonnet-4-6"
     private static let anthropicVersion = "2023-06-01"
     private static let systemPrompt = """
-    You are a Japanese-to-English translator. Translate the user's Japanese text into natural, fluent English. \
-    Output only the translation — no preamble, no romanization, no notes.
+    You are a Japanese language assistant. For each Japanese sentence the user sends, respond with exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
+
+    The JSON has two fields:
+
+    "furigana": an array of segments that, when their "text" values are concatenated in order, reproduce the input exactly (including punctuation and whitespace). Each segment is:
+      - "text": a substring of the input
+      - "reading": if "text" consists entirely of kanji (CJK ideographs), the hiragana pronunciation of those kanji in context; otherwise null
+
+    Segmentation rules:
+      - Group consecutive kanji that form a single word together (e.g., "天気" is one segment, not two)
+      - Kanji segments contain ONLY kanji — okurigana (the kana that follows a kanji root) goes in its own segment with reading=null
+      - Hiragana, katakana, punctuation, and whitespace each get their own segment(s) with reading=null
+      - Readings must be hiragana only (no katakana, no romaji)
+
+    "translation": a natural, fluent English translation of the full sentence.
+
+    Example for input "今日は良い天気ですね。":
+    {"furigana":[{"text":"今日","reading":"きょう"},{"text":"は","reading":null},{"text":"良","reading":"よ"},{"text":"い","reading":null},{"text":"天気","reading":"てんき"},{"text":"ですね。","reading":null}],"translation":"It's nice weather today, isn't it?"}
     """
 
-    func translate(_ japanese: String) async throws -> String {
+    func analyze(_ japanese: String) async throws -> TranslationResult {
         guard let apiKey = KeychainStore.read(), !apiKey.isEmpty else {
             throw TranslationError.missingAPIKey
         }
@@ -42,7 +71,7 @@ struct TranslationService {
 
         let payload = MessagesRequest(
             model: Self.model,
-            maxTokens: 1024,
+            maxTokens: 2048,
             system: Self.systemPrompt,
             messages: [.init(role: "user", content: japanese)]
         )
@@ -67,17 +96,42 @@ struct TranslationService {
             throw TranslationError.apiError(status: http.statusCode, message: message)
         }
 
+        let decoded: MessagesResponse
         do {
-            let decoded = try JSONDecoder().decode(MessagesResponse.self, from: data)
-            let text = decoded.content
-                .compactMap { $0.type == "text" ? $0.text : nil }
-                .joined()
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { throw TranslationError.decodingFailed }
-            return text
+            decoded = try JSONDecoder().decode(MessagesResponse.self, from: data)
         } catch {
             throw TranslationError.decodingFailed
         }
+
+        let rawText = decoded.content
+            .compactMap { $0.type == "text" ? $0.text : nil }
+            .joined()
+
+        let jsonText = Self.extractJSON(from: rawText)
+        guard let jsonData = jsonText.data(using: .utf8) else {
+            throw TranslationError.invalidResponseFormat("non-UTF8 response")
+        }
+
+        do {
+            let analysis = try JSONDecoder().decode(AnalysisResponse.self, from: jsonData)
+            let trimmedTranslation = analysis.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+            return TranslationResult(segments: analysis.furigana, englishTranslation: trimmedTranslation)
+        } catch {
+            throw TranslationError.invalidResponseFormat(error.localizedDescription)
+        }
+    }
+
+    private static func extractJSON(from text: String) -> String {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("```json") {
+            trimmed = String(trimmed.dropFirst("```json".count))
+        } else if trimmed.hasPrefix("```") {
+            trimmed = String(trimmed.dropFirst(3))
+        }
+        if trimmed.hasSuffix("```") {
+            trimmed = String(trimmed.dropLast(3))
+        }
+        return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -107,6 +161,11 @@ private struct MessagesResponse: Decodable {
         let type: String
         let text: String?
     }
+}
+
+private struct AnalysisResponse: Decodable {
+    let furigana: [FuriganaSegment]
+    let translation: String
 }
 
 private struct APIErrorEnvelope: Decodable {
