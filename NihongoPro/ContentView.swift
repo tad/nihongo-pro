@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @State private var showingSettings: Bool = false
     @State private var selectedWord: WordSelection?
+    @State private var isLoadingDefinitions: Bool = false
+    @State private var definitionsError: String?
     @StateObject private var speechService = SpeechService()
 
     private let translator = TranslationService()
@@ -42,7 +44,7 @@ struct ContentView: View {
                 SettingsView(speechService: speechService)
             }
             .sheet(item: $selectedWord) { selection in
-                WordDefinitionView(word: selection.word)
+                WordDefinitionView(word: selection.word, speechService: speechService)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -104,10 +106,39 @@ struct ContentView: View {
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    definitionsStatus
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var definitionsStatus: some View {
+        if isLoadingDefinitions {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading word definitions…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        } else if let definitionsError {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(.orange)
+                Text("Couldn't load definitions: \(definitionsError)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button("Retry") {
+                    Task { await fetchDefinitions() }
+                }
+                .font(.callout)
+            }
+        }
     }
 
     private var inputArea: some View {
@@ -174,20 +205,50 @@ struct ContentView: View {
 
         isTranslating = true
         errorMessage = nil
+        definitionsError = nil
         words = []
         englishTranslation = ""
 
         do {
-            let result = try await translator.analyze(trimmed)
+            let result = try await translator.translate(trimmed)
             words = result.words
             englishTranslation = result.englishTranslation
             speechService.speak(trimmed)
         } catch let error as TranslationError {
             errorMessage = error.errorDescription
+            isTranslating = false
+            return
         } catch {
             errorMessage = error.localizedDescription
+            isTranslating = false
+            return
         }
         isTranslating = false
+
+        await fetchDefinitions()
+    }
+
+    private func fetchDefinitions() async {
+        let wordTexts = words.map(\.text)
+        let sentence = wordTexts.joined()
+        guard !wordTexts.isEmpty, !sentence.isEmpty else { return }
+
+        definitionsError = nil
+        isLoadingDefinitions = true
+
+        do {
+            let definitions = try await translator.fetchDefinitions(sentence: sentence, words: wordTexts)
+            var updated = words
+            for i in updated.indices where i < definitions.count {
+                updated[i].definition = definitions[i]
+            }
+            words = updated
+        } catch let error as TranslationError {
+            definitionsError = error.errorDescription
+        } catch {
+            definitionsError = error.localizedDescription
+        }
+        isLoadingDefinitions = false
     }
 }
 

@@ -46,6 +46,14 @@ private struct WordView: View {
                 .fixedSize()
             }
         }
+        .padding(.bottom, 3)
+        .overlay(alignment: .bottom) {
+            if word.definition != nil {
+                Rectangle()
+                    .fill(.tint)
+                    .frame(height: 1.5)
+            }
+        }
         .contentShape(Rectangle())
     }
 }

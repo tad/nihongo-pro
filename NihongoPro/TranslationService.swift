@@ -9,7 +9,7 @@ struct Word: Decodable {
     let text: String
     let reading: String
     let furigana: [FuriganaSegment]
-    let definition: String?
+    var definition: String?
 }
 
 struct TranslationResult {
@@ -44,7 +44,8 @@ struct TranslationService {
     private static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     private static let model = "claude-sonnet-4-6"
     private static let anthropicVersion = "2023-06-01"
-    private static let systemPrompt = """
+
+    private static let translationSystemPrompt = """
     You are a Japanese language assistant. For each Japanese sentence the user sends, respond with exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
 
     The JSON has two fields:
@@ -53,21 +54,80 @@ struct TranslationService {
       - "text": the surface form of the word as written (e.g., "今日", "良い", "は", "。")
       - "reading": the full hiragana reading of the word (always provided; for words with no kanji, this equals "text")
       - "furigana": an array of {text, reading} display segments for the word. "reading" is the hiragana reading for kanji-only segments and null for kana/punctuation segments. Concatenating the segments' "text" must equal the word's "text".
-      - "definition": a concise English definition of the word in this context (1-2 phrases, e.g., "today", "good, fine", "topic-marking particle"). Use null only for pure punctuation marks.
+
+    Do NOT include definitions in this response — definitions are fetched separately.
 
     Segmentation rules:
       - Treat each grammatical word as one entry: nouns, verbs (including fully conjugated forms), adjectives, particles (は, が, を, に, etc.), copulas (です, だ), auxiliary verbs, etc.
-      - Within a word, split furigana segments so kanji-only and kana-only portions are separate (e.g., 良い -> [{text:"良", reading:"よ"}, {text:"い", reading:null}]).
-      - Whitespace and punctuation each get their own word entry with definition:null.
-      - Readings must be hiragana only (no katakana, no romaji).
+      - Within a word, split furigana segments so kanji-only and kana-only portions are separate (e.g., 良い -> [{text:"良", reading:"よ"}, {text:"い", reading:null}])
+      - Whitespace and punctuation each get their own word entry
+      - Readings must be hiragana only (no katakana, no romaji)
 
     "translation": a natural, fluent English translation of the full sentence.
 
     Example for input "今日は良い天気ですね。":
-    {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}],"definition":"today"},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}],"definition":"topic-marking particle"},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}],"definition":"good, fine"},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}],"definition":"weather"},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}],"definition":"polite copula (\\"is/are\\")"},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}],"definition":"sentence-final particle seeking agreement (\\"isn't it?\\")"},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}],"definition":null}],"translation":"It's nice weather today, isn't it?"}
+    {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}]},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}]},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}]},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}]},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}]},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}]},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}]}],"translation":"It's nice weather today, isn't it?"}
     """
 
-    func analyze(_ japanese: String) async throws -> TranslationResult {
+    private static let definitionsSystemPrompt = """
+    You are a Japanese language assistant. The user will send a JSON object containing a Japanese sentence and an ordered list of its words. Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
+
+    Response shape:
+    {"definitions": [...]}
+
+    "definitions" must be an array of strings (or null) with the **same length and order** as the input "words" array. For each word, provide a concise English definition in the context of the sentence (1-2 phrases, e.g., "today", "good, fine", "topic-marking particle"). Use null for pure punctuation marks and standalone whitespace.
+
+    Example input:
+    {"sentence":"今日は良い天気ですね。","words":["今日","は","良い","天気","です","ね","。"]}
+
+    Example response:
+    {"definitions":["today","topic-marking particle","good, fine","weather","polite copula (\\"is/are\\")","sentence-final particle seeking agreement (\\"isn't it?\\")",null]}
+    """
+
+    func translate(_ japanese: String) async throws -> TranslationResult {
+        let rawText = try await sendMessage(
+            systemPrompt: Self.translationSystemPrompt,
+            userMessage: japanese,
+            maxTokens: 2048
+        )
+        let jsonText = Self.extractJSON(from: rawText)
+        guard let jsonData = jsonText.data(using: .utf8) else {
+            throw TranslationError.invalidResponseFormat("non-UTF8 response")
+        }
+        do {
+            let response = try JSONDecoder().decode(TranslationResponse.self, from: jsonData)
+            let trimmedTranslation = response.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+            return TranslationResult(words: response.words, englishTranslation: trimmedTranslation)
+        } catch {
+            throw TranslationError.invalidResponseFormat(error.localizedDescription)
+        }
+    }
+
+    func fetchDefinitions(sentence: String, words: [String]) async throws -> [String?] {
+        let inputPayload = DefinitionsInput(sentence: sentence, words: words)
+        let inputData = try JSONEncoder().encode(inputPayload)
+        guard let inputString = String(data: inputData, encoding: .utf8) else {
+            throw TranslationError.invalidResponseFormat("couldn't encode request payload")
+        }
+
+        let rawText = try await sendMessage(
+            systemPrompt: Self.definitionsSystemPrompt,
+            userMessage: inputString,
+            maxTokens: 4096
+        )
+        let jsonText = Self.extractJSON(from: rawText)
+        guard let jsonData = jsonText.data(using: .utf8) else {
+            throw TranslationError.invalidResponseFormat("non-UTF8 response")
+        }
+        do {
+            let response = try JSONDecoder().decode(DefinitionsResponse.self, from: jsonData)
+            return response.definitions
+        } catch {
+            throw TranslationError.invalidResponseFormat(error.localizedDescription)
+        }
+    }
+
+    private func sendMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
         guard let apiKey = KeychainStore.read(), !apiKey.isEmpty else {
             throw TranslationError.missingAPIKey
         }
@@ -80,9 +140,9 @@ struct TranslationService {
 
         let payload = MessagesRequest(
             model: Self.model,
-            maxTokens: 4096,
-            system: Self.systemPrompt,
-            messages: [.init(role: "user", content: japanese)]
+            maxTokens: maxTokens,
+            system: systemPrompt,
+            messages: [.init(role: "user", content: userMessage)]
         )
         request.httpBody = try JSONEncoder().encode(payload)
 
@@ -112,22 +172,9 @@ struct TranslationService {
             throw TranslationError.decodingFailed
         }
 
-        let rawText = decoded.content
+        return decoded.content
             .compactMap { $0.type == "text" ? $0.text : nil }
             .joined()
-
-        let jsonText = Self.extractJSON(from: rawText)
-        guard let jsonData = jsonText.data(using: .utf8) else {
-            throw TranslationError.invalidResponseFormat("non-UTF8 response")
-        }
-
-        do {
-            let analysis = try JSONDecoder().decode(AnalysisResponse.self, from: jsonData)
-            let trimmedTranslation = analysis.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-            return TranslationResult(words: analysis.words, englishTranslation: trimmedTranslation)
-        } catch {
-            throw TranslationError.invalidResponseFormat(error.localizedDescription)
-        }
     }
 
     private static func extractJSON(from text: String) -> String {
@@ -172,9 +219,18 @@ private struct MessagesResponse: Decodable {
     }
 }
 
-private struct AnalysisResponse: Decodable {
+private struct TranslationResponse: Decodable {
     let words: [Word]
     let translation: String
+}
+
+private struct DefinitionsInput: Encodable {
+    let sentence: String
+    let words: [String]
+}
+
+private struct DefinitionsResponse: Decodable {
+    let definitions: [String?]
 }
 
 private struct APIErrorEnvelope: Decodable {
