@@ -16,6 +16,7 @@
 		FA00000000000000000000B8 /* FuriganaText.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000A8 /* FuriganaText.swift */; };
 		FA00000000000000000000B9 /* WordDefinitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000A9 /* WordDefinitionView.swift */; };
 		FA00000000000000000000BA /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000AA /* SpeechService.swift */; };
+		FA00000000000000000000BB /* BreakdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000AB /* BreakdownView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +30,7 @@
 		FA00000000000000000000A8 /* FuriganaText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuriganaText.swift; sourceTree = "<group>"; };
 		FA00000000000000000000A9 /* WordDefinitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDefinitionView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000AA /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
+		FA00000000000000000000AB /* BreakdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakdownView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -62,6 +64,7 @@
 				FA00000000000000000000A8 /* FuriganaText.swift */,
 				FA00000000000000000000A9 /* WordDefinitionView.swift */,
 				FA00000000000000000000AA /* SpeechService.swift */,
+				FA00000000000000000000AB /* BreakdownView.swift */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -154,6 +157,7 @@
 				FA00000000000000000000B8 /* FuriganaText.swift in Sources */,
 				FA00000000000000000000B9 /* WordDefinitionView.swift in Sources */,
 				FA00000000000000000000BA /* SpeechService.swift in Sources */,
+				FA00000000000000000000BB /* BreakdownView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

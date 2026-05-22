@@ -15,6 +15,10 @@ struct ContentView: View {
     @State private var selectedWord: WordSelection?
     @State private var isLoadingDefinitions: Bool = false
     @State private var definitionsError: String?
+    @State private var breakdown: String?
+    @State private var isLoadingBreakdown: Bool = false
+    @State private var breakdownError: String?
+    @State private var showingBreakdown: Bool = false
     @StateObject private var speechService = SpeechService()
 
     private let translator = TranslationService()
@@ -100,18 +104,61 @@ struct ContentView: View {
                 if !englishTranslation.isEmpty {
                     Divider()
 
-                    Text(englishTranslation)
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if showingBreakdown {
+                        breakdownContent
+                    } else {
+                        Text(englishTranslation)
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    definitionsStatus
+                        definitionsStatus
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var breakdownContent: some View {
+        if isLoadingBreakdown {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Building breakdown…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        } else if let breakdownError {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(.orange)
+                Text("Couldn't build breakdown: \(breakdownError)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button("Retry") {
+                    Task { await fetchBreakdown() }
+                }
+                .font(.callout)
+            }
+        } else if let breakdown {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(englishTranslation)
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                BreakdownView(markdown: breakdown)
+                    .textSelection(.enabled)
+            }
+        }
     }
 
     @ViewBuilder
@@ -179,23 +226,38 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
-            Button {
-                Task { await translate() }
-            } label: {
-                HStack {
-                    if isTranslating {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.white)
+            HStack(spacing: 12) {
+                Button {
+                    Task { await translate() }
+                } label: {
+                    HStack {
+                        if isTranslating {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        }
+                        Text(isTranslating ? "Translating…" : "Translate")
+                            .font(.headline)
                     }
-                    Text(isTranslating ? "Translating…" : "Translate")
-                        .font(.headline)
+                    .frame(minWidth: 160)
                 }
-                .frame(minWidth: 160)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTranslating)
+
+                if !showingBreakdown {
+                    Button {
+                        showBreakdown()
+                    } label: {
+                        Text("Breakdown")
+                            .font(.headline)
+                            .frame(minWidth: 130)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(englishTranslation.isEmpty || isTranslating || isLoadingBreakdown)
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTranslating)
         }
     }
 
@@ -206,6 +268,9 @@ struct ContentView: View {
         isTranslating = true
         errorMessage = nil
         definitionsError = nil
+        breakdown = nil
+        breakdownError = nil
+        showingBreakdown = false
         words = []
         englishTranslation = ""
 
@@ -226,6 +291,39 @@ struct ContentView: View {
         isTranslating = false
 
         await fetchDefinitions()
+    }
+
+    private func showBreakdown() {
+        if breakdown != nil {
+            showingBreakdown = true
+        } else {
+            Task { await fetchBreakdown() }
+        }
+    }
+
+    private func fetchBreakdown() async {
+        let wordList = words
+        let translation = englishTranslation
+        let sentence = wordList.map(\.text).joined()
+        guard !wordList.isEmpty, !translation.isEmpty else { return }
+
+        breakdownError = nil
+        isLoadingBreakdown = true
+        showingBreakdown = true
+
+        do {
+            let result = try await translator.fetchBreakdown(
+                sentence: sentence,
+                words: wordList,
+                translation: translation
+            )
+            breakdown = result
+        } catch let error as TranslationError {
+            breakdownError = error.errorDescription
+        } catch {
+            breakdownError = error.localizedDescription
+        }
+        isLoadingBreakdown = false
     }
 
     private func fetchDefinitions() async {
