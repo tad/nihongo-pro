@@ -12,7 +12,7 @@ struct Word: Decodable {
     var definition: String?
 }
 
-struct KanjiInfo: Decodable {
+struct KanjiInfo: Codable {
     let character: String
     let meanings: [String]
     let onyomi: [String]
@@ -83,15 +83,21 @@ struct TranslationService {
     You are a Japanese language assistant. The user will send a JSON object containing a Japanese sentence and an ordered list of its words. Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
 
     Response shape:
-    {"definitions": [...]}
+    {"definitions": [...], "context_dependent": [...]}
 
     "definitions" must be an array of strings (or null) with the **same length and order** as the input "words" array. For each word, provide a concise English definition in the context of the sentence (1-2 phrases, e.g., "today", "good, fine", "topic-marking particle"). Use null for pure punctuation marks and standalone whitespace.
+
+    "context_dependent" must be a same-length, same-order array of booleans. For each word, set **true** if a competent speaker would translate it meaningfully differently in different common contexts (the word is polysemous and a cached definition would mislead in other sentences); set **false** if the word has one dominant meaning that fits most contexts. Use false for punctuation and grammatical particles.
+
+    Polysemy guidance:
+    - false (one dominant sense): 今日 (today), 食べる (to eat), 雨 (rain), 学校 (school), 美しい (beautiful), all particles (は, が, の, に, を), all copulas (です, だ), all sentence-final particles (ね, よ, か)
+    - true (multiple senses depending on context): 走る ("to run [vehicle/person]" vs "to rush [errand]" vs "to extend [line]"), 開く ("to open" vs "to bloom"), 持つ ("to hold/carry" vs "to own/have" vs "to last"), 出る ("to leave" vs "to appear" vs "to attend"), 取る ("to take" vs "to choose" vs "to remove"), 立つ ("to stand" vs "to be erected" vs "to depart"), 上がる ("to go up" vs "to be finished" vs "to enter [a house]")
 
     Example input:
     {"sentence":"今日は良い天気ですね。","words":["今日","は","良い","天気","です","ね","。"]}
 
     Example response:
-    {"definitions":["today","topic-marking particle","good, fine","weather","polite copula (\\"is/are\\")","sentence-final particle seeking agreement (\\"isn't it?\\")",null]}
+    {"definitions":["today","topic-marking particle","good, fine","weather","polite copula (\\"is/are\\")","sentence-final particle seeking agreement (\\"isn't it?\\")",null],"context_dependent":[false,false,false,false,false,false,false]}
     """
 
     private static let kanjiInfoSystemPrompt = """
@@ -176,6 +182,10 @@ struct TranslationService {
     }
 
     func fetchKanjiInfo(kanji: Character) async throws -> KanjiInfo {
+        if let cached = await DefinitionCache.shared.kanjiInfo(for: kanji) {
+            return cached
+        }
+
         let rawText = try await sendMessage(
             systemPrompt: Self.kanjiInfoSystemPrompt,
             userMessage: String(kanji),
@@ -186,7 +196,9 @@ struct TranslationService {
             throw TranslationError.invalidResponseFormat("non-UTF8 response")
         }
         do {
-            return try JSONDecoder().decode(KanjiInfo.self, from: jsonData)
+            let info = try JSONDecoder().decode(KanjiInfo.self, from: jsonData)
+            await DefinitionCache.shared.setKanjiInfo(info, for: kanji)
+            return info
         } catch {
             throw TranslationError.invalidResponseFormat(error.localizedDescription)
         }
@@ -213,7 +225,26 @@ struct TranslationService {
     }
 
     func fetchDefinitions(sentence: String, words: [String]) async throws -> [String?] {
-        let inputPayload = DefinitionsInput(sentence: sentence, words: words)
+        var result: [String?] = Array(repeating: nil, count: words.count)
+        var uncachedIndices: [Int] = []
+
+        for (i, word) in words.enumerated() {
+            if Self.isPurePunctuation(word) {
+                continue
+            }
+            if let cached = await DefinitionCache.shared.definition(for: word) {
+                result[i] = cached
+            } else {
+                uncachedIndices.append(i)
+            }
+        }
+
+        if uncachedIndices.isEmpty {
+            return result
+        }
+
+        let uncachedWords = uncachedIndices.map { words[$0] }
+        let inputPayload = DefinitionsInput(sentence: sentence, words: uncachedWords)
         let inputData = try JSONEncoder().encode(inputPayload)
         guard let inputString = String(data: inputData, encoding: .utf8) else {
             throw TranslationError.invalidResponseFormat("couldn't encode request payload")
@@ -228,12 +259,37 @@ struct TranslationService {
         guard let jsonData = jsonText.data(using: .utf8) else {
             throw TranslationError.invalidResponseFormat("non-UTF8 response")
         }
+        let response: DefinitionsResponse
         do {
-            let response = try JSONDecoder().decode(DefinitionsResponse.self, from: jsonData)
-            return response.definitions
+            response = try JSONDecoder().decode(DefinitionsResponse.self, from: jsonData)
         } catch {
             throw TranslationError.invalidResponseFormat(error.localizedDescription)
         }
+
+        for (offset, originalIndex) in uncachedIndices.enumerated() where offset < response.definitions.count {
+            let def = response.definitions[offset]
+            result[originalIndex] = def
+
+            let isContextDependent: Bool
+            if let flags = response.contextDependent, offset < flags.count {
+                isContextDependent = flags[offset]
+            } else {
+                isContextDependent = true
+            }
+
+            if let def, !isContextDependent {
+                await DefinitionCache.shared.setDefinition(def, for: words[originalIndex])
+            }
+        }
+
+        return result
+    }
+
+    private static func isPurePunctuation(_ text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        let allowed = CharacterSet.punctuationCharacters
+            .union(.whitespacesAndNewlines)
+        return text.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
     private func sendMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
@@ -406,6 +462,12 @@ private struct DefinitionsInput: Encodable {
 
 private struct DefinitionsResponse: Decodable {
     let definitions: [String?]
+    let contextDependent: [Bool]?
+
+    enum CodingKeys: String, CodingKey {
+        case definitions
+        case contextDependent = "context_dependent"
+    }
 }
 
 private struct BreakdownInput: Encodable {
