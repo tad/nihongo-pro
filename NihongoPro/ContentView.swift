@@ -57,7 +57,7 @@ struct ContentView: View {
                     .presentationDragIndicator(.visible)
             }
             .fullScreenCover(item: $studySession) { session in
-                StudySessionView(session: session, translator: translator)
+                StudySessionView(session: session, translator: translator, speechService: speechService)
             }
             .onAppear {
                 if KeychainStore.read() == nil {

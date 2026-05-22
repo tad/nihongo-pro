@@ -25,6 +25,8 @@ final class StudySession: Identifiable {
     var kanjiIndex: Int = 0
     var studyVocab: [Word] = []
     var studyKanji: [Character] = []
+    var studyVocabIndex: Int = 0
+    var studyKanjiIndex: Int = 0
     var phase: Phase = .vocabPreQuiz
 
     var pomodoroDisplay: String = "25:00"
@@ -75,6 +77,16 @@ final class StudySession: Identifiable {
         return kanjiPlan[kanjiIndex]
     }
 
+    var currentStudyKanji: Character? {
+        guard studyKanjiIndex < studyKanji.count else { return nil }
+        return studyKanji[studyKanjiIndex]
+    }
+
+    var currentStudyWord: Word? {
+        guard studyVocabIndex < studyVocab.count else { return nil }
+        return studyVocab[studyVocabIndex]
+    }
+
     func recordVocabResult(passed: Bool) {
         guard vocabIndex < vocabPlan.count else { return }
         let word = vocabPlan[vocabIndex]
@@ -83,7 +95,11 @@ final class StudySession: Identifiable {
         }
         vocabIndex += 1
         if vocabIndex >= vocabPlan.count {
-            phase = kanjiPlan.isEmpty ? .completed : .kanjiPreQuiz
+            if !kanjiPlan.isEmpty {
+                phase = .kanjiPreQuiz
+            } else {
+                transitionAfterPreQuizzes()
+            }
         }
     }
 
@@ -95,6 +111,44 @@ final class StudySession: Identifiable {
         }
         kanjiIndex += 1
         if kanjiIndex >= kanjiPlan.count {
+            transitionAfterPreQuizzes()
+        }
+    }
+
+    func advanceKanjiStudy() {
+        studyKanjiIndex += 1
+        if studyKanjiIndex >= studyKanji.count {
+            transitionAfterKanjiStudy()
+        }
+    }
+
+    func advanceWordStudy() {
+        studyVocabIndex += 1
+        if studyVocabIndex >= studyVocab.count {
+            phase = .completed
+        }
+    }
+
+    private func transitionAfterPreQuizzes() {
+        if !studyKanji.isEmpty {
+            studyKanji.shuffle()
+            studyKanjiIndex = 0
+            phase = .kanjiStudy
+        } else if !studyVocab.isEmpty {
+            studyVocab.shuffle()
+            studyVocabIndex = 0
+            phase = .wordStudy
+        } else {
+            phase = .completed
+        }
+    }
+
+    private func transitionAfterKanjiStudy() {
+        if !studyVocab.isEmpty {
+            studyVocab.shuffle()
+            studyVocabIndex = 0
+            phase = .wordStudy
+        } else {
             phase = .completed
         }
     }

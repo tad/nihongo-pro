@@ -3,6 +3,7 @@ import SwiftUI
 struct StudySessionView: View {
     @Bindable var session: StudySession
     let translator: TranslationService
+    @ObservedObject var speechService: SpeechService
 
     @State private var showingEndConfirmation: Bool = false
     @Environment(\.dismiss) private var dismiss
@@ -62,8 +63,12 @@ struct StudySessionView: View {
             VocabPreQuizCard(session: session, translator: translator)
         case .kanjiPreQuiz:
             KanjiPreQuizCard(session: session, translator: translator)
-        case .kanjiStudy, .wordStudy, .translation:
-            PendingPhasesCard()
+        case .kanjiStudy:
+            KanjiStudyCard(session: session, translator: translator)
+        case .wordStudy:
+            WordStudyCard(session: session, speechService: speechService)
+        case .translation:
+            TranslationPlaceholderCard()
         case .completed:
             SessionCompleteCard(session: session) {
                 dismiss()
@@ -478,17 +483,264 @@ struct KanjiPreQuizCard: View {
     }
 }
 
-struct PendingPhasesCard: View {
+struct KanjiStudyCard: View {
+    @Bindable var session: StudySession
+    let translator: TranslationService
+
+    @State private var info: KanjiInfo?
+    @State private var infoError: String?
+    @State private var isLoadingInfo: Bool = true
+    @State private var svg: String?
+    @State private var svgError: String?
+    @State private var isLoadingSVG: Bool = true
+    @State private var animationKey: Int = 0
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 20) {
+            if let kanji = session.currentStudyKanji {
+                Text("Kanji study — \(session.studyKanjiIndex + 1) of \(session.studyKanji.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(String(kanji))
+                    .font(.system(size: 96, weight: .regular, design: .serif))
+
+                infoSection
+
+                strokeOrderSection
+
+                Text("Write this kanji 5 times on paper, along with its meaning.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 480)
+                    .padding(.top, 8)
+
+                Button {
+                    session.advanceKanjiStudy()
+                } label: {
+                    Text("I'm done →")
+                        .font(.headline)
+                        .frame(minWidth: 160)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 32)
+        .task(id: session.studyKanjiIndex) {
+            await loadKanji()
+        }
+    }
+
+    @ViewBuilder
+    private var infoSection: some View {
+        if isLoadingInfo {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Loading meaning…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        } else if let infoError {
+            Text(infoError)
+                .font(.callout)
+                .foregroundStyle(.orange)
+        } else if let info {
+            VStack(alignment: .center, spacing: 8) {
+                if !info.meanings.isEmpty {
+                    Text(info.meanings.joined(separator: ", "))
+                        .font(.title3)
+                        .multilineTextAlignment(.center)
+                        .textSelection(.enabled)
+                }
+                if !info.onyomi.isEmpty || !info.kunyomi.isEmpty {
+                    HStack(spacing: 16) {
+                        if !info.onyomi.isEmpty {
+                            Text("On'yomi: \(info.onyomi.joined(separator: " ・ "))")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                        if !info.kunyomi.isEmpty {
+                            Text("Kun'yomi: \(info.kunyomi.joined(separator: " ・ "))")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if let note = info.note, !note.isEmpty {
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+            }
+            .frame(maxWidth: 520)
+        }
+    }
+
+    @ViewBuilder
+    private var strokeOrderSection: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("Stroke order")
+                    .font(.headline)
+                Spacer()
+                if svg != nil {
+                    Button {
+                        animationKey += 1
+                    } label: {
+                        Label("Replay", systemImage: "arrow.clockwise")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+            .frame(maxWidth: 320)
+
+            if isLoadingSVG {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading stroke order…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(height: 240)
+            } else if let svgError {
+                Text(svgError)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(height: 80)
+            } else if let svg {
+                KanjiStrokeView(svg: svg)
+                    .id(animationKey)
+                    .frame(width: 280, height: 280)
+            }
+        }
+    }
+
+    private func loadKanji() async {
+        guard let kanji = session.currentStudyKanji else { return }
+        info = nil
+        svg = nil
+        infoError = nil
+        svgError = nil
+        isLoadingInfo = true
+        isLoadingSVG = true
+        animationKey = 0
+
+        async let infoTask: Void = loadInfo(kanji: kanji)
+        async let svgTask: Void = loadSVG(kanji: kanji)
+        _ = await (infoTask, svgTask)
+    }
+
+    private func loadInfo(kanji: Character) async {
+        do {
+            info = try await translator.fetchKanjiInfo(kanji: kanji)
+        } catch let error as TranslationError {
+            infoError = error.errorDescription
+        } catch {
+            infoError = error.localizedDescription
+        }
+        isLoadingInfo = false
+    }
+
+    private func loadSVG(kanji: Character) async {
+        do {
+            svg = try await KanjiVGService.loadSVG(for: kanji)
+        } catch let error as KanjiVGError {
+            svgError = error.errorDescription
+        } catch {
+            svgError = error.localizedDescription
+        }
+        isLoadingSVG = false
+    }
+}
+
+struct WordStudyCard: View {
+    @Bindable var session: StudySession
+    @ObservedObject var speechService: SpeechService
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 20) {
+            if let word = session.currentStudyWord {
+                Text("Word study — \(session.studyVocabIndex + 1) of \(session.studyVocab.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if word.reading != word.text {
+                    Text(word.reading)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(word.text)
+                    .font(.system(size: 72, weight: .regular, design: .serif))
+
+                if let definition = word.definition {
+                    Text(definition)
+                        .font(.title3)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 520)
+                        .textSelection(.enabled)
+                }
+
+                Button {
+                    if speechService.isSpeaking {
+                        speechService.stop()
+                    } else {
+                        speechService.speak(word.text)
+                    }
+                } label: {
+                    Label(
+                        speechService.isSpeaking ? "Stop" : "Tap to hear",
+                        systemImage: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill"
+                    )
+                    .font(.headline)
+                    .frame(minWidth: 180)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Text("Write the word and its definition 5 times on paper, and say the word out loud 5 times.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 520)
+                    .padding(.top, 8)
+
+                Button {
+                    if speechService.isSpeaking {
+                        speechService.stop()
+                    }
+                    session.advanceWordStudy()
+                } label: {
+                    Text("I'm done →")
+                        .font(.headline)
+                        .frame(minWidth: 160)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 32)
+    }
+}
+
+struct TranslationPlaceholderCard: View {
     var body: some View {
         VStack(spacing: 16) {
             ProgressView()
-            Text("Pre-quiz finished. Skipping to summary…")
+            Text("Translation phase ships in the next update.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
         .padding(40)
-        .onAppear {
-        }
     }
 }
 
