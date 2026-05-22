@@ -240,6 +240,19 @@ struct ContentView: View {
             }
 
             HStack(spacing: 12) {
+                Button(role: .destructive) {
+                    clear()
+                } label: {
+                    Text("Clear")
+                        .font(.headline)
+                        .frame(minWidth: 100)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(isTranslating || (inputText.isEmpty && words.isEmpty && englishTranslation.isEmpty && errorMessage == nil))
+
+                Spacer()
+
                 Button {
                     Task { await translate() }
                 } label: {
@@ -296,6 +309,22 @@ struct ContentView: View {
             }
         }
         return count > 1
+    }
+
+    private func clear() {
+        if speechService.isSpeaking {
+            speechService.stop()
+        }
+        inputText = ""
+        words = []
+        englishTranslation = ""
+        errorMessage = nil
+        definitionsError = nil
+        breakdown = nil
+        breakdownError = nil
+        showingBreakdown = false
+        isLoadingDefinitions = false
+        isLoadingBreakdown = false
     }
 
     private func translate() async {
