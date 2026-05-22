@@ -7,6 +7,7 @@ struct WordDefinitionView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedKanji: KanjiSelection?
+    @State private var seenCount: Int = 0
 
     var body: some View {
         NavigationStack {
@@ -14,6 +15,10 @@ struct WordDefinitionView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     HStack(alignment: .center, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
+                            Text(seenCountLabel)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
                             wordHeader
 
                             if word.reading != word.text {
@@ -66,7 +71,14 @@ struct WordDefinitionView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .task {
+                seenCount = await FrequencyTracker.shared.wordFrequency(for: word.text)
+            }
         }
+    }
+
+    private var seenCountLabel: String {
+        seenCount == 1 ? "Seen 1 time" : "Seen \(seenCount) times"
     }
 
     private var wordHeader: some View {

@@ -379,6 +379,7 @@ struct ContentView: View {
             words = result.words
             englishTranslation = result.englishTranslation
             parsedInputText = trimmed
+            await FrequencyTracker.shared.recordSentence(words: result.words)
             speechService.speak(trimmed)
         } catch let error as TranslationError {
             guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {

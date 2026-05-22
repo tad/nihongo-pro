@@ -22,6 +22,7 @@
 		FA00000000000000000000BE /* KanjiDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000AE /* KanjiDetailView.swift */; };
 		FA00000000000000000000BF /* SVGPathParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000AF /* SVGPathParser.swift */; };
 		FA00000000000000000000C0 /* DefinitionCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000B0 /* DefinitionCache.swift */; };
+		FA00000000000000000000C6 /* FrequencyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000B6 /* FrequencyTracker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		FA00000000000000000000AE /* KanjiDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanjiDetailView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000AF /* SVGPathParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SVGPathParser.swift; sourceTree = "<group>"; };
 		FA00000000000000000000B0 /* DefinitionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefinitionCache.swift; sourceTree = "<group>"; };
+		FA00000000000000000000B6 /* FrequencyTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyTracker.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -80,6 +82,7 @@
 				FA00000000000000000000AE /* KanjiDetailView.swift */,
 				FA00000000000000000000AF /* SVGPathParser.swift */,
 				FA00000000000000000000B0 /* DefinitionCache.swift */,
+				FA00000000000000000000B6 /* FrequencyTracker.swift */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -178,6 +181,7 @@
 				FA00000000000000000000BE /* KanjiDetailView.swift in Sources */,
 				FA00000000000000000000BF /* SVGPathParser.swift in Sources */,
 				FA00000000000000000000C0 /* DefinitionCache.swift in Sources */,
+				FA00000000000000000000C6 /* FrequencyTracker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -15,11 +15,17 @@ struct KanjiDetailView: View {
     @State private var isLoadingSVG: Bool = true
 
     @State private var animationKey: Int = 0
+    @State private var seenCount: Int = 0
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    Text(seenCountLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
                     Text(String(kanji))
                         .font(.system(size: 96, weight: .regular, design: .serif))
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -47,6 +53,13 @@ struct KanjiDetailView: View {
             async let svgTask: Void = loadSVG()
             _ = await (infoTask, svgTask)
         }
+        .task {
+            seenCount = await FrequencyTracker.shared.kanjiFrequency(for: kanji)
+        }
+    }
+
+    private var seenCountLabel: String {
+        seenCount == 1 ? "Seen 1 time" : "Seen \(seenCount) times"
     }
 
     @ViewBuilder
