@@ -73,6 +73,8 @@ struct TranslationService {
 
     "translation": a natural, fluent English translation of the full sentence.
 
+    JSON escaping: every string value must be valid JSON. If the input contains an ASCII double-quote character ("), it must appear as \\" inside the relevant "text", "reading", and "furigana" string values. Backslashes must appear as \\\\. Typographic/curly quotes (" " ' ') and the fullwidth quotation marks (「」『』) do NOT need escaping. Treat unusual symbols (®, ™, ・, etc.) as their own word entries with reading equal to text.
+
     Example for input "今日は良い天気ですね。":
     {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}]},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}]},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}]},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}]},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}]},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}]},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}]}],"translation":"It's nice weather today, isn't it?"}
     """
@@ -145,21 +147,31 @@ struct TranslationService {
     """
 
     func translate(_ japanese: String) async throws -> TranslationResult {
+        do {
+            return try await translateAttempt(japanese)
+        } catch TranslationError.invalidResponseFormat {
+            let sanitized = Self.sanitizeForJSON(japanese)
+            return try await translateAttempt(sanitized)
+        }
+    }
+
+    private func translateAttempt(_ japanese: String) async throws -> TranslationResult {
         let rawText = try await sendMessage(
             systemPrompt: Self.translationSystemPrompt,
             userMessage: japanese,
-            maxTokens: 2048
+            maxTokens: 8192
         )
         let jsonText = Self.extractJSON(from: rawText)
         guard let jsonData = jsonText.data(using: .utf8) else {
-            throw TranslationError.invalidResponseFormat("non-UTF8 response")
+            throw TranslationError.invalidResponseFormat("non-UTF8 response — got: \(Self.previewSnippet(rawText))")
         }
         do {
             let response = try JSONDecoder().decode(TranslationResponse.self, from: jsonData)
             let trimmedTranslation = response.translation.trimmingCharacters(in: .whitespacesAndNewlines)
             return TranslationResult(words: response.words, englishTranslation: trimmedTranslation)
         } catch {
-            throw TranslationError.invalidResponseFormat(error.localizedDescription)
+            let detail = Self.decoderErrorDetail(error)
+            throw TranslationError.invalidResponseFormat("\(detail) — got: \(Self.previewSnippet(rawText))")
         }
     }
 
@@ -275,7 +287,13 @@ struct TranslationService {
     }
 
     private static func extractJSON(from text: String) -> String {
-        stripCodeFences(from: text)
+        let stripped = stripCodeFences(from: text)
+        guard let firstBrace = stripped.firstIndex(of: "{"),
+              let lastBrace = stripped.lastIndex(of: "}"),
+              firstBrace <= lastBrace else {
+            return stripped
+        }
+        return String(stripped[firstBrace...lastBrace])
     }
 
     private static func stripCodeFences(from text: String) -> String {
@@ -291,6 +309,60 @@ struct TranslationService {
             trimmed = String(trimmed.dropLast(3))
         }
         return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func previewSnippet(_ text: String, headLimit: Int = 600, tailLimit: Int = 600) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count <= headLimit + tailLimit + 5 { return trimmed }
+        let head = trimmed.prefix(headLimit)
+        let tail = trimmed.suffix(tailLimit)
+        return "\(head)…[\(trimmed.count - headLimit - tailLimit) chars elided]…\(tail)"
+    }
+
+    private static func decoderErrorDetail(_ error: Error) -> String {
+        if let decodingError = error as? DecodingError {
+            switch decodingError {
+            case .dataCorrupted(let context):
+                if let underlying = context.underlyingError as NSError?,
+                   let debug = underlying.userInfo[NSDebugDescriptionErrorKey] as? String,
+                   !debug.isEmpty {
+                    return "dataCorrupted: \(debug)"
+                }
+                return "dataCorrupted: \(context.debugDescription)"
+            case .keyNotFound(let key, let context):
+                return "keyNotFound[\(key.stringValue)] at \(Self.formatPath(context.codingPath))"
+            case .typeMismatch(let type, let context):
+                return "typeMismatch[\(type)] at \(Self.formatPath(context.codingPath)): \(context.debugDescription)"
+            case .valueNotFound(let type, let context):
+                return "valueNotFound[\(type)] at \(Self.formatPath(context.codingPath))"
+            @unknown default:
+                break
+            }
+        }
+        let nsError = error as NSError
+        if let debug = nsError.userInfo[NSDebugDescriptionErrorKey] as? String, !debug.isEmpty {
+            return debug
+        }
+        return error.localizedDescription
+    }
+
+    private static func formatPath(_ path: [CodingKey]) -> String {
+        path.isEmpty ? "root" : path.map(\.stringValue).joined(separator: "/")
+    }
+
+    private static let charsToStripForJSON: Set<Character> = [
+        "\"", "'",
+        "\u{201C}", "\u{201D}",
+        "\u{2018}", "\u{2019}",
+        "\u{201E}", "\u{201A}", "\u{201F}",
+        "\u{2032}", "\u{2033}",
+        "\u{00AB}", "\u{00BB}",
+        "\u{301D}", "\u{301E}", "\u{301F}"
+    ]
+
+    private static func sanitizeForJSON(_ text: String) -> String {
+        let stripped = text.filter { !Self.charsToStripForJSON.contains($0) }
+        return stripped.replacingOccurrences(of: "\\", with: "／")
     }
 }
 

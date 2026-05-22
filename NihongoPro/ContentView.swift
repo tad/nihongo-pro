@@ -19,6 +19,9 @@ struct ContentView: View {
     @State private var isLoadingBreakdown: Bool = false
     @State private var breakdownError: String?
     @State private var showingBreakdown: Bool = false
+    @State private var isTranslationRevealed: Bool = false
+    @State private var parsedInputText: String = ""
+    @State private var autoParseTask: Task<Void, Never>?
     @StateObject private var speechService = SpeechService()
 
     private let translator = TranslationService()
@@ -57,12 +60,15 @@ struct ContentView: View {
                     showingSettings = true
                 }
             }
+            .onChange(of: inputText) { _, _ in
+                handleInputChange()
+            }
         }
     }
 
     private var translationDisplay: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if isTranslating {
+            if words.isEmpty && isTranslating {
                 VStack(spacing: 16) {
                     ProgressView()
                         .controlSize(.large)
@@ -73,7 +79,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 60)
             } else if words.isEmpty {
-                Text("Paste a Japanese sentence below and tap Translate.")
+                Text("Paste a Japanese sentence below — it'll appear here for you to read first.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -101,7 +107,9 @@ struct ContentView: View {
                     .accessibilityLabel(speechService.isSpeaking ? "Stop audio" : "Play audio")
                 }
 
-                if !englishTranslation.isEmpty {
+                definitionsStatus
+
+                if isTranslationRevealed && !englishTranslation.isEmpty {
                     Divider()
 
                     if showingBreakdown {
@@ -113,8 +121,6 @@ struct ContentView: View {
                             .textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
-
-                        definitionsStatus
                     }
                 }
             }
@@ -253,29 +259,19 @@ struct ContentView: View {
 
                 Spacer()
 
-                Button {
-                    Task { await translate() }
-                } label: {
-                    HStack {
-                        if isTranslating {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white)
-                        }
-                        Text(isTranslating ? "Translating…" : "Translate")
+                if !isTranslationRevealed && !words.isEmpty && !englishTranslation.isEmpty {
+                    Button {
+                        isTranslationRevealed = true
+                    } label: {
+                        Text("Show translation")
                             .font(.headline)
+                            .frame(minWidth: 180)
                     }
-                    .frame(minWidth: 160)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(
-                    inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || isTranslating
-                    || isMultiSentence(inputText)
-                )
 
-                if !showingBreakdown {
+                if isTranslationRevealed && !showingBreakdown {
                     Button {
                         showBreakdown()
                     } label: {
@@ -312,6 +308,8 @@ struct ContentView: View {
     }
 
     private func clear() {
+        autoParseTask?.cancel()
+        autoParseTask = nil
         if speechService.isSpeaking {
             speechService.stop()
         }
@@ -323,8 +321,40 @@ struct ContentView: View {
         breakdown = nil
         breakdownError = nil
         showingBreakdown = false
+        isTranslationRevealed = false
+        parsedInputText = ""
         isLoadingDefinitions = false
         isLoadingBreakdown = false
+    }
+
+    private func handleInputChange() {
+        autoParseTask?.cancel()
+
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed != parsedInputText {
+            words = []
+            englishTranslation = ""
+            breakdown = nil
+            breakdownError = nil
+            definitionsError = nil
+            showingBreakdown = false
+            isTranslationRevealed = false
+            parsedInputText = ""
+        }
+
+        guard !trimmed.isEmpty,
+              !isMultiSentence(inputText),
+              KeychainStore.read() != nil,
+              trimmed != parsedInputText else {
+            return
+        }
+
+        autoParseTask = Task {
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            await translate()
+        }
     }
 
     private func translate() async {
@@ -342,14 +372,27 @@ struct ContentView: View {
 
         do {
             let result = try await translator.translate(trimmed)
+            guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                isTranslating = false
+                return
+            }
             words = result.words
             englishTranslation = result.englishTranslation
+            parsedInputText = trimmed
             speechService.speak(trimmed)
         } catch let error as TranslationError {
+            guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                isTranslating = false
+                return
+            }
             errorMessage = error.errorDescription
             isTranslating = false
             return
         } catch {
+            guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                isTranslating = false
+                return
+            }
             errorMessage = error.localizedDescription
             isTranslating = false
             return

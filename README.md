@@ -1,6 +1,6 @@
 # Nihongo Pro
 
-A personal Japanese-study iPad app. Paste a Japanese sentence and get it back instantly with **furigana** above the kanji and a natural English translation below.
+A personal Japanese-study iPad app. Paste a Japanese sentence and see it back instantly with **furigana** above the kanji — tap any word for its meaning, try to understand the sentence yourself, then tap **Show translation** to reveal the natural English when you're ready.
 
 Translation and furigana are powered by Claude (Anthropic's Messages API). Your API key is stored in the iOS Keychain on-device — it never leaves the iPad except to call `api.anthropic.com`.
 
@@ -28,11 +28,11 @@ The Settings sheet appears automatically. Paste your Anthropic API key (starts w
 
 ## Using it
 
-1. Paste a Japanese sentence into the text box at the bottom. Input is limited to a single sentence — long sentences are welcome, but multi-sentence text will disable the Translate button and show a warning.
-2. Tap **Translate**. A *Waiting on Claude…* indicator appears while the request is in flight (usually a second or two).
-3. The sentence appears at the top with small hiragana **furigana** above each kanji segment, alongside a speaker button to replay the audio. A natural English translation sits below. Japanese audio plays automatically as soon as the result appears; tap the speaker button any time to replay. A brief *Loading word definitions…* indicator appears below the translation while per-word definitions load in the background; once they arrive, tappable words become underlined.
-4. **Tap any underlined word** in the Japanese sentence to open a definition sheet with its kana reading and an English meaning. (Punctuation is unmarked and not tappable.) Tap the speaker icon inside the sheet to hear just that word pronounced. Inside that sheet, the word's kanji characters appear underlined in the accent color — tap any kanji to drill into a new sheet showing its meaning, on'yomi/kun'yomi readings, a short note, and an animated stroke order diagram. Drag the sheet down or tap *Done* to dismiss.
-5. Tap **Breakdown** (right of Translate) to expand into a full study view: the English translation, then Vocabulary, Grammar, Sentence structure, and a Notes paragraph at the bottom. The button disappears once you're in the breakdown — tap Translate again to start over.
+1. Paste a Japanese sentence into the text box at the bottom. Input is limited to a single sentence — long sentences are welcome, but multi-sentence text will block the auto-parse and show a warning.
+2. About a second after you stop typing/pasting, the sentence renders at the top with small hiragana **furigana** above each kanji segment, alongside a speaker button. Japanese audio plays automatically as soon as the result appears; tap the speaker any time to replay. A brief *Loading word definitions…* indicator runs while per-word definitions load in the background; once they arrive, tappable words become underlined.
+3. **Tap any underlined word** in the Japanese sentence to open a definition sheet with its kana reading and an English meaning. (Punctuation is unmarked and not tappable.) Tap the speaker icon inside the sheet to hear just that word pronounced. Inside that sheet, the word's kanji characters appear underlined in the accent color — tap any kanji to drill into a new sheet showing its meaning, on'yomi/kun'yomi readings, a short note, and an animated stroke order diagram. Drag the sheet down or tap *Done* to dismiss.
+4. Try to understand the sentence on your own. Once the Japanese has rendered, a **Show translation** button appears at the bottom — tap it when you're ready to reveal the natural English below.
+5. Tap **Breakdown** (appears after you reveal the translation) to expand into a full study view: the English translation, then Vocabulary, Grammar, Sentence structure, and a Notes paragraph at the bottom. The button disappears once you're in the breakdown — paste a new sentence to start over.
 6. Tap **Clear** (bottom left) to wipe the input, translation, and breakdown so you can paste a fresh sentence. Audio playback is stopped if it's still running.
 7. To change voice or playback speed, tap the gear icon and use the **Speech** section. Tap *Play Sample* to preview your current selection. For better-quality voices, download enhanced/premium variants in iPadOS *Settings → Accessibility → Spoken Content → Voices → Japanese*, then **fully quit Nihongo Pro and reopen it** — new voices won't show up in the picker until the app process restarts.
 
@@ -45,17 +45,22 @@ Example output:
 ```
    きょう      よ        てんき
    今日 は 良 い 天気 ですね。
+```
+
+…and then, after you tap **Show translation**:
+
+```
    ─────────────────────────────
    It's nice weather today, isn't it?
 ```
 
 ## Features
 
-- **Paste-and-translate** Japanese → English with one tap
+- **Study-first flow** — paste a sentence and the Japanese (with furigana) appears automatically after a short pause. The English translation stays hidden behind a **Show translation** button so you can attempt the sentence yourself first.
 - **Furigana** rendered above kanji segments, with kanji compounds kept together
-- **Tap any underlined word** in the Japanese display to see its kana reading and a contextual English definition in a bottom sheet, with a speaker button to hear just that word. (Definitions are fetched in a second background pass — words become underlined and tappable a moment after the translation appears.)
+- **Tap any underlined word** in the Japanese display to see its kana reading and a contextual English definition in a bottom sheet, with a speaker button to hear just that word. (Definitions are fetched in a second background pass — words become underlined and tappable a moment after the sentence appears.)
 - **Tap a kanji** inside the word panel to drill into a per-character view: meaning, on'yomi/kun'yomi readings, a memorable note, and an animated stroke order diagram (stroke data from [KanjiVG](https://kanjivg.tagaini.net), CC BY-SA 3.0, fetched on demand and cached locally).
-- **Breakdown view** — tap the Breakdown button (right of Translate) to swap to a full study breakdown of the sentence: the English translation at top, then Vocabulary, Grammar, Sentence structure, and a Notes paragraph. The button disappears once you're in the breakdown — tap Translate to start over.
+- **Breakdown view** — once the translation is revealed, tap Breakdown to swap to a full study breakdown of the sentence: the English translation at top, then Vocabulary, Grammar, Sentence structure, and a Notes paragraph. The button disappears once you're in the breakdown — paste a new sentence to start over.
 - **Spoken Japanese** — the sentence is read aloud automatically after the translation appears, and a speaker button lets you replay it any time. Pick your voice and playback rate (Natural / 85% / 65%) in Settings, with a Play Sample button to preview.
 - **Selectable** English translation (long-press to copy)
 - **In-app API-key management** via the gear icon, with Keychain storage
