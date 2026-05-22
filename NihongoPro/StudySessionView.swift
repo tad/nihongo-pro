@@ -68,7 +68,10 @@ struct StudySessionView: View {
         case .wordStudy:
             WordStudyCard(session: session, speechService: speechService)
         case .translation:
-            TranslationPlaceholderCard()
+            TranslationCritiqueCard(session: session, translator: translator) {
+                session.end()
+                dismiss()
+            }
         case .completed:
             SessionCompleteCard(session: session) {
                 dismiss()
@@ -732,15 +735,157 @@ struct WordStudyCard: View {
     }
 }
 
-struct TranslationPlaceholderCard: View {
+struct TranslationCritiqueCard: View {
+    @Bindable var session: StudySession
+    let translator: TranslationService
+    let onFinish: () -> Void
+
+    @State private var userInput: String = ""
+    @State private var isSubmitting: Bool = false
+    @State private var critique: String?
+    @State private var critiqueError: String?
+    @FocusState private var isInputFocused: Bool
+
     var body: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Translation phase ships in the next update.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Translate this sentence")
+                .font(.title2)
+                .bold()
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            Text(session.sentence)
+                .font(.system(size: 32, weight: .regular, design: .serif))
+                .multilineTextAlignment(.center)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+
+            if critique != nil || critiqueError != nil {
+                resultView
+            } else {
+                inputView
+            }
         }
-        .padding(40)
+        .padding(.horizontal, 32)
+        .frame(maxWidth: 720)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var inputView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Your translation")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            TextEditor(text: $userInput)
+                .focused($isInputFocused)
+                .font(.body)
+                .frame(minHeight: 140, maxHeight: 220)
+                .padding(8)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .autocorrectionDisabled(false)
+        }
+        .onAppear {
+            isInputFocused = true
+        }
+
+        Button {
+            Task { await submit() }
+        } label: {
+            HStack {
+                if isSubmitting {
+                    ProgressView().controlSize(.small).tint(.white)
+                }
+                Text(isSubmitting ? "Getting critique…" : "Submit")
+                    .font(.headline)
+            }
+            .frame(minWidth: 180)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    @ViewBuilder
+    private var resultView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Your translation")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(userInput)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Reference")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(session.referenceTranslation)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
+            if let critique {
+                Text("Critique")
+                    .font(.headline)
+                BreakdownView(markdown: critique)
+                    .textSelection(.enabled)
+            } else if let critiqueError {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundStyle(.orange)
+                    Text("Couldn't get critique: \(critiqueError)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button("Retry") {
+                        Task { await submit() }
+                    }
+                }
+            }
+
+            Button {
+                onFinish()
+            } label: {
+                Text("Finish")
+                    .font(.headline)
+                    .frame(minWidth: 180)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 12)
+        }
+    }
+
+    private func submit() async {
+        let trimmed = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isSubmitting = true
+        critiqueError = nil
+        defer { isSubmitting = false }
+
+        do {
+            critique = try await translator.critiqueTranslation(
+                sentence: session.sentence,
+                referenceTranslation: session.referenceTranslation,
+                userTranslation: trimmed
+            )
+        } catch let error as TranslationError {
+            critiqueError = error.errorDescription
+        } catch {
+            critiqueError = error.localizedDescription
+        }
     }
 }
 

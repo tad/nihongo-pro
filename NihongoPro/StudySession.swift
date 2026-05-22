@@ -17,6 +17,7 @@ final class StudySession: Identifiable {
     let id = UUID()
     let sentence: String
     let referenceTranslation: String
+    let originalWords: [Word]
 
     let vocabPlan: [Word]
     let kanjiPlan: [Character]
@@ -41,6 +42,7 @@ final class StudySession: Identifiable {
     init(sentence: String, words: [Word], referenceTranslation: String) {
         self.sentence = sentence
         self.referenceTranslation = referenceTranslation
+        self.originalWords = words
 
         var seenWords = Set<String>()
         let uniqueWords = words.filter { word in
@@ -125,7 +127,7 @@ final class StudySession: Identifiable {
     func advanceWordStudy() {
         studyVocabIndex += 1
         if studyVocabIndex >= studyVocab.count {
-            phase = .completed
+            phase = .translation
         }
     }
 
@@ -139,7 +141,7 @@ final class StudySession: Identifiable {
             studyVocabIndex = 0
             phase = .wordStudy
         } else {
-            phase = .completed
+            phase = .translation
         }
     }
 
@@ -149,7 +151,7 @@ final class StudySession: Identifiable {
             studyVocabIndex = 0
             phase = .wordStudy
         } else {
-            phase = .completed
+            phase = .translation
         }
     }
 

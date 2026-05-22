@@ -124,6 +124,32 @@ struct TranslationService {
     {"character":"天","meanings":["heaven","sky","celestial"],"onyomi":["テン"],"kunyomi":["あめ","あま"],"note":"Pictograph of a person (大) with a flat line above representing the sky. Appears in many words about weather (天気) and the heavens."}
     """
 
+    private static let critiqueSystemPrompt = """
+    You are a warm, encouraging Japanese tutor reviewing a student's English translation of a Japanese sentence. The user sends a JSON object with three fields:
+    - "sentence": the original Japanese sentence
+    - "reference_translation": a natural English translation
+    - "user_translation": the student's typed attempt
+
+    Respond with plain Markdown — paragraphs and inline **bold** / *italic* only. No headings, no bullet lists, no code fences.
+
+    Cover, in this order, each as its own short paragraph:
+    1. What the student got right — be specific (cite particles, vocab choices, tense, register).
+    2. What could be improved — style, nuance, missed grammar, wrong sense of a word. Cite the Japanese phrase when helpful (use **bold** for the Japanese).
+    3. (Optional) One sentence of broader teaching insight if there's a useful lesson in this sentence.
+
+    Be encouraging and supportive. Avoid scoring. Avoid prescribing a single "correct" translation — natural language is flexible. Keep the whole response under 200 words. Do NOT repeat the user's translation or the reference translation verbatim — the UI already shows both.
+
+    Example input:
+    {"sentence":"今日は良い天気ですね。","reference_translation":"It's nice weather today, isn't it?","user_translation":"Today's weather is good."}
+
+    Example response:
+    You captured the core meaning well — **今日** as "today" and **天気** as "weather" are spot on, and you kept the polite register implied by **です**. The structure also faithfully follows the topic-comment pattern of the original.
+
+    The sentence-final **ね** is doing a bit of social work that your version misses — it invites the listener to agree, closer to "isn't it?" or "right?" in English. Folding that in gives the translation a more conversational feel.
+
+    Sentences ending in **ね** almost always benefit from a tag question or "isn't it?" in English — that's a useful pattern to internalize.
+    """
+
     private static let evaluationSystemPrompt = """
     You are evaluating a user's typed answer to a Japanese vocabulary quiz. The user sends a JSON object with three fields:
     - "item": the Japanese word or kanji being quizzed
@@ -254,6 +280,29 @@ struct TranslationService {
         let trimmed = Self.stripCodeFences(from: rawText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw TranslationError.invalidResponseFormat("empty breakdown response")
+        }
+        return trimmed
+    }
+
+    func critiqueTranslation(sentence: String, referenceTranslation: String, userTranslation: String) async throws -> String {
+        let payload = CritiqueInput(
+            sentence: sentence,
+            referenceTranslation: referenceTranslation,
+            userTranslation: userTranslation
+        )
+        let inputData = try JSONEncoder().encode(payload)
+        guard let inputString = String(data: inputData, encoding: .utf8) else {
+            throw TranslationError.invalidResponseFormat("couldn't encode critique payload")
+        }
+
+        let rawText = try await sendMessage(
+            systemPrompt: Self.critiqueSystemPrompt,
+            userMessage: inputString,
+            maxTokens: 1024
+        )
+        let trimmed = Self.stripCodeFences(from: rawText).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw TranslationError.invalidResponseFormat("empty critique response")
         }
         return trimmed
     }
@@ -525,6 +574,18 @@ private struct EvaluationInput: Encodable {
     enum CodingKeys: String, CodingKey {
         case item, reference
         case userAnswer = "user_answer"
+    }
+}
+
+private struct CritiqueInput: Encodable {
+    let sentence: String
+    let referenceTranslation: String
+    let userTranslation: String
+
+    enum CodingKeys: String, CodingKey {
+        case sentence
+        case referenceTranslation = "reference_translation"
+        case userTranslation = "user_translation"
     }
 }
 
