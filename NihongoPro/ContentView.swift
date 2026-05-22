@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @State private var showingSettings: Bool = false
     @State private var selectedWord: WordSelection?
+    @StateObject private var speechService = SpeechService()
 
     private let translator = TranslationService()
 
@@ -38,7 +39,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showingSettings) {
-                SettingsView()
+                SettingsView(speechService: speechService)
             }
             .sheet(item: $selectedWord) { selection in
                 WordDefinitionView(word: selection.word)
@@ -72,10 +73,27 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
             } else {
-                FuriganaText(words: words) { word in
-                    selectedWord = WordSelection(word: word)
+                HStack(alignment: .top, spacing: 12) {
+                    FuriganaText(words: words) { word in
+                        selectedWord = WordSelection(word: word)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        if speechService.isSpeaking {
+                            speechService.stop()
+                        } else {
+                            speechService.speak(words.map(\.text).joined())
+                        }
+                    } label: {
+                        Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
+                            .font(.title)
+                            .foregroundStyle(.tint)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(speechService.isSpeaking ? "Stop audio" : "Play audio")
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !englishTranslation.isEmpty {
                     Divider()
@@ -163,6 +181,7 @@ struct ContentView: View {
             let result = try await translator.analyze(trimmed)
             words = result.words
             englishTranslation = result.englishTranslation
+            speechService.speak(trimmed)
         } catch let error as TranslationError {
             errorMessage = error.errorDescription
         } catch {

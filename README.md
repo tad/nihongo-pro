@@ -30,8 +30,9 @@ The Settings sheet appears automatically. Paste your Anthropic API key (starts w
 
 1. Paste a Japanese sentence into the text box at the bottom.
 2. Tap **Translate**. A *Waiting on Claude…* indicator appears while the request is in flight (usually a second or two).
-3. The sentence appears at the top with small hiragana **furigana** above each kanji segment. A natural English translation sits below.
+3. The sentence appears at the top with small hiragana **furigana** above each kanji segment, alongside a speaker button to replay the audio. A natural English translation sits below. Japanese audio plays automatically as soon as the result appears; tap the speaker button any time to replay.
 4. **Tap any word** in the Japanese sentence to open a definition sheet with its kana reading and an English meaning. Drag the sheet down or tap *Done* to dismiss.
+5. To change voice or playback speed, tap the gear icon and use the **Speech** section. Tap *Play Sample* to preview your current selection. For better-quality voices, download enhanced/premium variants in iPadOS *Settings → Accessibility → Spoken Content → Voices → Japanese*, then **fully quit Nihongo Pro and reopen it** — new voices won't show up in the picker until the app process restarts.
 
 Example input:
 ```
@@ -51,6 +52,7 @@ Example output:
 - **Paste-and-translate** Japanese → English with one tap
 - **Furigana** rendered above kanji segments, with kanji compounds kept together
 - **Tap any word** in the Japanese display to see its kana reading and a contextual English definition in a bottom sheet
+- **Spoken Japanese** — the sentence is read aloud automatically after the translation appears, and a speaker button lets you replay it any time. Pick your voice and playback rate (Natural / 85% / 65%) in Settings, with a Play Sample button to preview.
 - **Selectable** English translation (long-press to copy)
 - **In-app API-key management** via the gear icon, with Keychain storage
 
@@ -59,6 +61,7 @@ Example output:
 - SwiftUI (iPadOS 26+), no third-party dependencies
 - Anthropic Messages API (`claude-sonnet-4-6`) via `URLSession`
 - iOS Keychain (`Security` framework) for API key storage
+- `AVSpeechSynthesizer` (`AVFoundation`) for on-device Japanese TTS
 - Custom SwiftUI `Layout` for furigana flow-wrapping
 
 ## Privacy
