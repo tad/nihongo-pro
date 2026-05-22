@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var isTranslationRevealed: Bool = false
     @State private var parsedInputText: String = ""
     @State private var autoParseTask: Task<Void, Never>?
+    @State private var studySession: StudySession?
     @StateObject private var speechService = SpeechService()
 
     private let translator = TranslationService()
@@ -54,6 +55,9 @@ struct ContentView: View {
                 WordDefinitionView(word: selection.word, translator: translator, speechService: speechService)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            .fullScreenCover(item: $studySession) { session in
+                StudySessionView(session: session, translator: translator)
             }
             .onAppear {
                 if KeychainStore.read() == nil {
@@ -283,6 +287,19 @@ struct ContentView: View {
                     .controlSize(.large)
                     .disabled(englishTranslation.isEmpty || isTranslating || isLoadingBreakdown)
                 }
+
+                if !words.isEmpty {
+                    Button {
+                        startStudySession()
+                    } label: {
+                        Text("Start study")
+                            .font(.headline)
+                            .frame(minWidth: 130)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(isTranslating || isLoadingDefinitions || englishTranslation.isEmpty)
+                }
             }
         }
     }
@@ -305,6 +322,16 @@ struct ContentView: View {
             }
         }
         return count > 1
+    }
+
+    private func startStudySession() {
+        guard !words.isEmpty, !englishTranslation.isEmpty else { return }
+        let sentence = parsedInputText.isEmpty ? inputText.trimmingCharacters(in: .whitespacesAndNewlines) : parsedInputText
+        studySession = StudySession(
+            sentence: sentence,
+            words: words,
+            referenceTranslation: englishTranslation
+        )
     }
 
     private func clear() {

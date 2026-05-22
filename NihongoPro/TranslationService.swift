@@ -20,6 +20,11 @@ struct KanjiInfo: Codable {
     let note: String?
 }
 
+struct DefinitionEvaluation: Decodable {
+    let correct: Bool
+    let feedback: String
+}
+
 struct TranslationResult {
     let words: [Word]
     let englishTranslation: String
@@ -117,6 +122,35 @@ struct TranslationService {
 
     Example response:
     {"character":"天","meanings":["heaven","sky","celestial"],"onyomi":["テン"],"kunyomi":["あめ","あま"],"note":"Pictograph of a person (大) with a flat line above representing the sky. Appears in many words about weather (天気) and the heavens."}
+    """
+
+    private static let evaluationSystemPrompt = """
+    You are evaluating a user's typed answer to a Japanese vocabulary quiz. The user sends a JSON object with three fields:
+    - "item": the Japanese word or kanji being quizzed
+    - "reference": the reference English definition (or comma-separated meanings for kanji)
+    - "user_answer": what the user typed
+
+    Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary):
+    {"correct": bool, "feedback": string}
+
+    Grading rules:
+    - "correct" = true if the user's answer demonstrates understanding of the same meaning(s) as the reference, even with very different wording. Accept paraphrases, single-word answers that capture the main sense, and answers that contain the right meaning amid extra words. For kanji whose reference lists multiple meanings, accept any one of them.
+    - "correct" = false if the answer is blank, irrelevant, captures a clearly wrong meaning, or is just a transliteration with no English meaning.
+    - "feedback" = one short sentence (1-2 phrases). If correct, briefly confirm. If incorrect, gently say so and state the reference meaning.
+
+    Be lenient on style and exact wording. The goal is to verify the user knows what the word means, not to grade English usage.
+
+    Example: {"item":"今日","reference":"today","user_answer":"this day"}
+    Response: {"correct":true,"feedback":"Right — \\"today\\" is \\"this day.\\""}
+
+    Example: {"item":"今日","reference":"today","user_answer":"tomorrow"}
+    Response: {"correct":false,"feedback":"Not quite — 今日 means \\"today,\\" not \\"tomorrow.\\""}
+
+    Example: {"item":"日","reference":"day, sun, Japan","user_answer":"sun"}
+    Response: {"correct":true,"feedback":"Yes — 日 means \\"sun,\\" as well as \\"day\\" or \\"Japan.\\""}
+
+    Example: {"item":"食べる","reference":"to eat","user_answer":"eat"}
+    Response: {"correct":true,"feedback":"Right — 食べる means \\"to eat.\\""}
     """
 
     private static let breakdownSystemPrompt = """
@@ -222,6 +256,29 @@ struct TranslationService {
             throw TranslationError.invalidResponseFormat("empty breakdown response")
         }
         return trimmed
+    }
+
+    func evaluateDefinition(item: String, reference: String, userAnswer: String) async throws -> DefinitionEvaluation {
+        let payload = EvaluationInput(item: item, reference: reference, userAnswer: userAnswer)
+        let inputData = try JSONEncoder().encode(payload)
+        guard let inputString = String(data: inputData, encoding: .utf8) else {
+            throw TranslationError.invalidResponseFormat("couldn't encode evaluation payload")
+        }
+
+        let rawText = try await sendMessage(
+            systemPrompt: Self.evaluationSystemPrompt,
+            userMessage: inputString,
+            maxTokens: 512
+        )
+        let jsonText = Self.extractJSON(from: rawText)
+        guard let jsonData = jsonText.data(using: .utf8) else {
+            throw TranslationError.invalidResponseFormat("non-UTF8 response")
+        }
+        do {
+            return try JSONDecoder().decode(DefinitionEvaluation.self, from: jsonData)
+        } catch {
+            throw TranslationError.invalidResponseFormat(Self.decoderErrorDetail(error))
+        }
     }
 
     func fetchDefinitions(sentence: String, words: [String]) async throws -> [String?] {
@@ -458,6 +515,17 @@ private struct TranslationResponse: Decodable {
 private struct DefinitionsInput: Encodable {
     let sentence: String
     let words: [String]
+}
+
+private struct EvaluationInput: Encodable {
+    let item: String
+    let reference: String
+    let userAnswer: String
+
+    enum CodingKeys: String, CodingKey {
+        case item, reference
+        case userAnswer = "user_answer"
+    }
 }
 
 private struct DefinitionsResponse: Decodable {
