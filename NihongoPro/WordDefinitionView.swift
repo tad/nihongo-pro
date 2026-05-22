@@ -2,8 +2,11 @@ import SwiftUI
 
 struct WordDefinitionView: View {
     let word: Word
+    let translator: TranslationService
     @ObservedObject var speechService: SpeechService
     @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedKanji: KanjiSelection?
 
     var body: some View {
         NavigationStack {
@@ -11,9 +14,7 @@ struct WordDefinitionView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     HStack(alignment: .center, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(word.text)
-                                .font(.system(size: 64, weight: .regular, design: .serif))
-                                .textSelection(.enabled)
+                            wordHeader
 
                             if word.reading != word.text {
                                 Text(word.reading)
@@ -60,6 +61,38 @@ struct WordDefinitionView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .sheet(item: $selectedKanji) { selection in
+                KanjiDetailView(kanji: selection.character, translator: translator)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
         }
     }
+
+    private var wordHeader: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(word.text.enumerated()), id: \.offset) { _, char in
+                if char.isKanji {
+                    Button {
+                        selectedKanji = KanjiSelection(character: char)
+                    } label: {
+                        Text(String(char))
+                            .font(.system(size: 64, weight: .regular, design: .serif))
+                            .foregroundStyle(.tint)
+                            .underline()
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(String(char))
+                        .font(.system(size: 64, weight: .regular, design: .serif))
+                }
+            }
+        }
+        .textSelection(.enabled)
+    }
+}
+
+private struct KanjiSelection: Identifiable {
+    let id = UUID()
+    let character: Character
 }

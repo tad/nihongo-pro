@@ -12,6 +12,14 @@ struct Word: Decodable {
     var definition: String?
 }
 
+struct KanjiInfo: Decodable {
+    let character: String
+    let meanings: [String]
+    let onyomi: [String]
+    let kunyomi: [String]
+    let note: String?
+}
+
 struct TranslationResult {
     let words: [Word]
     let englishTranslation: String
@@ -84,6 +92,25 @@ struct TranslationService {
     {"definitions":["today","topic-marking particle","good, fine","weather","polite copula (\\"is/are\\")","sentence-final particle seeking agreement (\\"isn't it?\\")",null]}
     """
 
+    private static let kanjiInfoSystemPrompt = """
+    You are a Japanese kanji reference. The user will send a single kanji character. Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
+
+    Response shape:
+    {"character":"X","meanings":["...","..."],"onyomi":["...","..."],"kunyomi":["...","..."],"note":"..."}
+
+    Fields:
+    - "character": the input kanji (echo it back).
+    - "meanings": 1-3 short English meanings (e.g., ["heaven","sky"]).
+    - "onyomi": common on'yomi (Chinese-derived) readings in katakana. Use an empty array if none are commonly used.
+    - "kunyomi": common kun'yomi (native Japanese) readings in hiragana. Use a period to mark okurigana boundaries (e.g., "た.べる"). Use an empty array if none are commonly used.
+    - "note": 1-2 sentence memorable description: visual mnemonic, etymology, or common usage pattern. Use null if nothing notable.
+
+    Example input: 天
+
+    Example response:
+    {"character":"天","meanings":["heaven","sky","celestial"],"onyomi":["テン"],"kunyomi":["あめ","あま"],"note":"Pictograph of a person (大) with a flat line above representing the sky. Appears in many words about weather (天気) and the heavens."}
+    """
+
     private static let breakdownSystemPrompt = """
     You are a Japanese language tutor. The user will send a JSON object containing a Japanese sentence, the words it contains (with readings and definitions where known), and an English translation. Respond with a detailed but concise vocabulary and grammar breakdown of the sentence in plain Markdown.
 
@@ -131,6 +158,23 @@ struct TranslationService {
             let response = try JSONDecoder().decode(TranslationResponse.self, from: jsonData)
             let trimmedTranslation = response.translation.trimmingCharacters(in: .whitespacesAndNewlines)
             return TranslationResult(words: response.words, englishTranslation: trimmedTranslation)
+        } catch {
+            throw TranslationError.invalidResponseFormat(error.localizedDescription)
+        }
+    }
+
+    func fetchKanjiInfo(kanji: Character) async throws -> KanjiInfo {
+        let rawText = try await sendMessage(
+            systemPrompt: Self.kanjiInfoSystemPrompt,
+            userMessage: String(kanji),
+            maxTokens: 1024
+        )
+        let jsonText = Self.extractJSON(from: rawText)
+        guard let jsonData = jsonText.data(using: .utf8) else {
+            throw TranslationError.invalidResponseFormat("non-UTF8 response")
+        }
+        do {
+            return try JSONDecoder().decode(KanjiInfo.self, from: jsonData)
         } catch {
             throw TranslationError.invalidResponseFormat(error.localizedDescription)
         }

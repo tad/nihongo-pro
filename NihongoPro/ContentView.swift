@@ -48,7 +48,7 @@ struct ContentView: View {
                 SettingsView(speechService: speechService)
             }
             .sheet(item: $selectedWord) { selection in
-                WordDefinitionView(word: selection.word, speechService: speechService)
+                WordDefinitionView(word: selection.word, translator: translator, speechService: speechService)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -226,6 +226,19 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
+            if isMultiSentence(inputText) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.orange)
+                    Text("Looks like more than one sentence — please paste just one. Long sentences are fine.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             HStack(spacing: 12) {
                 Button {
                     Task { await translate() }
@@ -243,7 +256,11 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTranslating)
+                .disabled(
+                    inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || isTranslating
+                    || isMultiSentence(inputText)
+                )
 
                 if !showingBreakdown {
                     Button {
@@ -259,6 +276,26 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private func isMultiSentence(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        var count = 0
+        trimmed.enumerateSubstrings(
+            in: trimmed.startIndex..<trimmed.endIndex,
+            options: .bySentences
+        ) { substring, _, _, stop in
+            guard let s = substring?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else {
+                return
+            }
+            count += 1
+            if count > 1 {
+                stop = true
+            }
+        }
+        return count > 1
     }
 
     private func translate() async {
