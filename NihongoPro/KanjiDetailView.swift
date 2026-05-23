@@ -29,6 +29,8 @@ struct KanjiDetailView: View {
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
+                        familiarityPicker
+
                         Text(String(kanji))
                             .font(.displayKanji)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -66,6 +68,10 @@ struct KanjiDetailView: View {
 
     private var seenCountLabel: String {
         seenCount == 1 ? "Seen 1 time" : "Seen \(seenCount) times"
+    }
+
+    private var familiarityPicker: some View {
+        KanjiFamiliarityPicker(kanji: kanji)
     }
 
     @ViewBuilder

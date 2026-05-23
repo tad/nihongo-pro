@@ -16,38 +16,42 @@ struct WordDefinitionView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        HStack(alignment: .center, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(seenCountLabel)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                wordHeader
-
-                                if word.reading != word.text {
-                                    Text(word.reading)
-                                        .font(.title2)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .center, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(seenCountLabel)
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
+
+                                    wordHeader
+
+                                    if word.reading != word.text {
+                                        Text(word.reading)
+                                            .font(.title2)
+                                            .foregroundStyle(.secondary)
+                                            .textSelection(.enabled)
+                                    }
                                 }
+
+                                Spacer()
+
+                                Button {
+                                    if speechService.isSpeaking {
+                                        speechService.stop()
+                                    } else {
+                                        speechService.speak(word.text)
+                                    }
+                                } label: {
+                                    Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
+                                        .font(.largeTitle)
+                                        .foregroundStyle(.tint)
+                                        .frame(width: 56, height: 56)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(speechService.isSpeaking ? "Stop word audio" : "Play word audio")
                             }
 
-                            Spacer()
-
-                            Button {
-                                if speechService.isSpeaking {
-                                    speechService.stop()
-                                } else {
-                                    speechService.speak(word.text)
-                                }
-                            } label: {
-                                Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(.tint)
-                                    .frame(width: 56, height: 56)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(speechService.isSpeaking ? "Stop word audio" : "Play word audio")
+                            familiarityPicker
                         }
                         .cardChrome()
 
@@ -85,6 +89,10 @@ struct WordDefinitionView: View {
 
     private var seenCountLabel: String {
         seenCount == 1 ? "Seen 1 time" : "Seen \(seenCount) times"
+    }
+
+    private var familiarityPicker: some View {
+        WordFamiliarityPicker(word: word.text)
     }
 
     private var wordHeader: some View {

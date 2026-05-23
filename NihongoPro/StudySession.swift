@@ -44,10 +44,13 @@ final class StudySession: Identifiable {
         self.referenceTranslation = referenceTranslation
         self.originalWords = words
 
+        let familiarity = FamiliarityStore.shared
+
         var seenWords = Set<String>()
         let uniqueWords = words.filter { word in
             guard !Self.isPunctuation(word.text) else { return false }
             guard !Self.commonParticles.contains(word.text) else { return false }
+            guard familiarity.wordLevel(for: word.text) != .known else { return false }
             return seenWords.insert(word.text).inserted
         }
         self.vocabPlan = uniqueWords.shuffled()
@@ -56,6 +59,7 @@ final class StudySession: Identifiable {
         var uniqueKanji: [Character] = []
         for word in uniqueWords {
             for ch in word.text where ch.isKanji {
+                guard familiarity.kanjiLevel(for: ch) != .known else { continue }
                 if seenKanji.insert(ch).inserted {
                     uniqueKanji.append(ch)
                 }
@@ -64,7 +68,7 @@ final class StudySession: Identifiable {
         self.kanjiPlan = uniqueKanji.shuffled()
 
         if uniqueWords.isEmpty {
-            self.phase = uniqueKanji.isEmpty ? .completed : .kanjiPreQuiz
+            self.phase = uniqueKanji.isEmpty ? .translation : .kanjiPreQuiz
         }
 
         startWorkInterval()
@@ -88,6 +92,26 @@ final class StudySession: Identifiable {
     var currentStudyWord: Word? {
         guard studyVocabIndex < studyVocab.count else { return nil }
         return studyVocab[studyVocabIndex]
+    }
+
+    func skipCurrentVocab() {
+        guard vocabIndex < vocabPlan.count else { return }
+        vocabIndex += 1
+        if vocabIndex >= vocabPlan.count {
+            if !kanjiPlan.isEmpty {
+                phase = .kanjiPreQuiz
+            } else {
+                transitionAfterPreQuizzes()
+            }
+        }
+    }
+
+    func skipCurrentKanjiPreQuiz() {
+        guard kanjiIndex < kanjiPlan.count else { return }
+        kanjiIndex += 1
+        if kanjiIndex >= kanjiPlan.count {
+            transitionAfterPreQuizzes()
+        }
     }
 
     func recordVocabResult(passed: Bool) {

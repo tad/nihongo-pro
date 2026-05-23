@@ -10,18 +10,32 @@ struct FuriganaText: View {
     var onWordTap: (Word) -> Void = { _ in }
 
     var body: some View {
+        let store = FamiliarityStore.shared
         FuriganaFlowLayout(spacing: wordSpacing, lineSpacing: lineSpacing) {
             ForEach(words.indices, id: \.self) { index in
                 let word = words[index]
                 Button {
                     onWordTap(word)
                 } label: {
-                    WordView(word: word, baseFont: baseFont, rubyFont: rubyFont, rubyColor: rubyColor)
+                    WordView(
+                        word: word,
+                        baseFont: baseFont,
+                        rubyFont: rubyFont,
+                        rubyColor: rubyColor,
+                        hideFurigana: Self.shouldHideFurigana(for: word, store: store)
+                    )
                 }
                 .buttonStyle(.plain)
                 .disabled(word.definition == nil)
             }
         }
+    }
+
+    private static func shouldHideFurigana(for word: Word, store: FamiliarityStore) -> Bool {
+        if store.wordLevel(for: word.text) == .known { return true }
+        let kanjiChars = word.text.filter { $0.isKanji }
+        guard !kanjiChars.isEmpty else { return false }
+        return kanjiChars.allSatisfy { store.kanjiLevel(for: $0) == .known }
     }
 }
 
@@ -30,6 +44,7 @@ private struct WordView: View {
     let baseFont: Font
     let rubyFont: Font
     let rubyColor: Color
+    let hideFurigana: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -39,7 +54,7 @@ private struct WordView: View {
                     Text(seg.reading ?? " ")
                         .font(rubyFont)
                         .foregroundStyle(rubyColor)
-                        .opacity(seg.reading == nil ? 0 : 1)
+                        .opacity((hideFurigana || seg.reading == nil) ? 0 : 1)
                     Text(seg.text)
                         .font(baseFont)
                 }

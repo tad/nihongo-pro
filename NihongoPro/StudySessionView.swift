@@ -173,6 +173,11 @@ struct VocabPreQuizCard: View {
                     .font(.displayWord)
                     .textSelection(.disabled)
 
+                WordFamiliarityPicker(word: word.text) {
+                    skipKnown()
+                }
+                .frame(maxWidth: 360)
+
                 Group {
                     if let result {
                         resultView(word: word, result: result)
@@ -185,6 +190,14 @@ struct VocabPreQuizCard: View {
         }
         .cardChrome()
         .frame(maxWidth: 600)
+    }
+
+    private func skipKnown() {
+        definitionInput = ""
+        pronunciationInput = ""
+        result = nil
+        isEvaluating = false
+        session.skipCurrentVocab()
     }
 
     @ViewBuilder
@@ -355,6 +368,11 @@ struct KanjiPreQuizCard: View {
                     .font(.displayKanji)
                     .textSelection(.disabled)
 
+                KanjiFamiliarityPicker(kanji: kanji) {
+                    skipKnown()
+                }
+                .frame(maxWidth: 360)
+
                 Group {
                     if isLoadingReference {
                         HStack(spacing: 8) {
@@ -378,6 +396,14 @@ struct KanjiPreQuizCard: View {
         .task(id: session.kanjiIndex) {
             await loadReference()
         }
+    }
+
+    private func skipKnown() {
+        definitionInput = ""
+        result = nil
+        isEvaluating = false
+        referenceInfo = nil
+        session.skipCurrentKanjiPreQuiz()
     }
 
     @ViewBuilder
@@ -537,6 +563,11 @@ struct KanjiStudyCard: View {
 
                 Text(String(kanji))
                     .font(.displayKanji)
+
+                KanjiFamiliarityPicker(kanji: kanji) {
+                    session.advanceKanjiStudy()
+                }
+                .frame(maxWidth: 360)
 
                 infoSection
 
@@ -714,6 +745,12 @@ struct WordStudyCard: View {
 
                 Text(word.text)
                     .font(.displayWord)
+
+                WordFamiliarityPicker(word: word.text) {
+                    if speechService.isSpeaking { speechService.stop() }
+                    session.advanceWordStudy()
+                }
+                .frame(maxWidth: 360)
 
                 if let definition = word.definition {
                     Text(definition)
