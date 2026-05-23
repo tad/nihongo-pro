@@ -19,26 +19,32 @@ struct KanjiDetailView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text(seenCountLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            ZStack {
+                Color.paperBackground.ignoresSafeArea()
 
-                    Text(String(kanji))
-                        .font(.system(size: 96, weight: .regular, design: .serif))
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .textSelection(.enabled)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        Text(seenCountLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    infoSection
+                        Text(String(kanji))
+                            .font(.displayKanji)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .textSelection(.enabled)
 
-                    Divider()
+                        infoSection
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                    strokeOrderSection
+                        strokeOrderSection
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(32)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .navigationTitle("Kanji")
             .navigationBarTitleDisplayMode(.inline)

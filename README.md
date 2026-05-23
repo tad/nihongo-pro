@@ -68,6 +68,10 @@ Example output:
 - **Selectable** English translation (long-press to copy)
 - **In-app API-key management** via the gear icon, with Keychain storage
 
+## Visual identity
+
+A calm Japanese-inspired palette: deep indigo (kon-iro) for the primary accent, warm paper-cream for the background, vermillion (shu-iro) reserved for celebratory moments (a correct quiz answer, finishing a session). Content sits on translucent material cards with soft shadows. Subtle motion: phase transitions slide between cards, the pomodoro pill ticks its digits, result icons bounce in. Auto-adapts to dark mode.
+
 ## Tech stack
 
 - SwiftUI (iPadOS 26+), no third-party dependencies

@@ -11,17 +11,22 @@ struct StudySessionView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                Color.paperBackground.ignoresSafeArea()
+
                 ScrollView {
                     phaseContent
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
+                        .padding(.horizontal, 24)
                 }
 
                 if session.isOnBreak {
                     breakOverlay
-                        .transition(.opacity)
+                        .transition(.scale(scale: 0.92).combined(with: .opacity))
                 }
             }
+            .animation(.smooth(duration: 0.35), value: session.phase)
+            .animation(.spring(response: 0.45, dampingFraction: 0.78), value: session.isOnBreak)
             .navigationTitle("Study Session")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -58,25 +63,32 @@ struct StudySessionView: View {
 
     @ViewBuilder
     private var phaseContent: some View {
-        switch session.phase {
-        case .vocabPreQuiz:
-            VocabPreQuizCard(session: session, translator: translator)
-        case .kanjiPreQuiz:
-            KanjiPreQuizCard(session: session, translator: translator)
-        case .kanjiStudy:
-            KanjiStudyCard(session: session, translator: translator)
-        case .wordStudy:
-            WordStudyCard(session: session, speechService: speechService)
-        case .translation:
-            TranslationCritiqueCard(session: session, translator: translator) {
-                session.end()
-                dismiss()
-            }
-        case .completed:
-            SessionCompleteCard(session: session) {
-                dismiss()
+        Group {
+            switch session.phase {
+            case .vocabPreQuiz:
+                VocabPreQuizCard(session: session, translator: translator)
+            case .kanjiPreQuiz:
+                KanjiPreQuizCard(session: session, translator: translator)
+            case .kanjiStudy:
+                KanjiStudyCard(session: session, translator: translator)
+            case .wordStudy:
+                WordStudyCard(session: session, speechService: speechService)
+            case .translation:
+                TranslationCritiqueCard(session: session, translator: translator) {
+                    session.end()
+                    dismiss()
+                }
+            case .completed:
+                SessionCompleteCard(session: session) {
+                    dismiss()
+                }
             }
         }
+        .id(session.phase)
+        .transition(.asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .leading).combined(with: .opacity)
+        ))
     }
 
     private var breakOverlay: some View {
@@ -110,21 +122,26 @@ struct PomodoroPill: View {
     @Bindable var session: StudySession
 
     var body: some View {
+        let tint: Color = session.isOnBreak ? .orange : .accentColor
         HStack(spacing: 6) {
             Image(systemName: session.isOnBreak ? "moon.fill" : "timer")
                 .font(.caption)
+                .contentTransition(.symbolEffect(.replace))
             Text(session.pomodoroDisplay)
                 .font(.callout)
                 .monospacedDigit()
+                .contentTransition(.numericText())
         }
         .foregroundStyle(session.isOnBreak ? .orange : .primary)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(
-            (session.isOnBreak ? Color.orange : Color.accentColor)
-                .opacity(0.15)
+        .background(tint.opacity(0.12), in: Capsule())
+        .overlay(
+            Capsule().strokeBorder(tint.opacity(0.65), lineWidth: 1.5)
         )
-        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+        .animation(.smooth(duration: 0.3), value: session.isOnBreak)
+        .animation(.smooth(duration: 0.25), value: session.pomodoroDisplay)
     }
 }
 
@@ -153,17 +170,21 @@ struct VocabPreQuizCard: View {
                     .foregroundStyle(.secondary)
 
                 Text(word.text)
-                    .font(.system(size: 72, weight: .regular, design: .serif))
+                    .font(.displayWord)
                     .textSelection(.disabled)
 
-                if let result {
-                    resultView(word: word, result: result)
-                } else {
-                    inputView(word: word)
+                Group {
+                    if let result {
+                        resultView(word: word, result: result)
+                    } else {
+                        inputView(word: word)
+                    }
                 }
+                .animation(.spring(response: 0.4, dampingFraction: 0.78), value: result == nil)
             }
         }
-        .padding(.horizontal, 32)
+        .cardChrome()
+        .frame(maxWidth: 600)
     }
 
     @ViewBuilder
@@ -222,8 +243,10 @@ struct VocabPreQuizCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
                 Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundStyle(result.passed ? .green : .red)
+                    .foregroundStyle(result.passed ? Color.vermillion : .red)
                     .font(.title)
+                    .symbolEffect(.bounce, value: result.passed)
+                    .transition(.scale.combined(with: .opacity))
                 Text(result.passed ? "Correct!" : "Not quite")
                     .font(.title2)
                     .bold()
@@ -329,24 +352,29 @@ struct KanjiPreQuizCard: View {
                     .foregroundStyle(.secondary)
 
                 Text(String(kanji))
-                    .font(.system(size: 96, weight: .regular, design: .serif))
+                    .font(.displayKanji)
                     .textSelection(.disabled)
 
-                if isLoadingReference {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Loading reference…")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                Group {
+                    if isLoadingReference {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Loading reference…")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let result {
+                        resultView(kanji: kanji, result: result)
+                    } else {
+                        inputView(kanji: kanji)
                     }
-                } else if let result {
-                    resultView(kanji: kanji, result: result)
-                } else {
-                    inputView(kanji: kanji)
                 }
+                .animation(.spring(response: 0.4, dampingFraction: 0.78), value: result == nil)
+                .animation(.smooth(duration: 0.2), value: isLoadingReference)
             }
         }
-        .padding(.horizontal, 32)
+        .cardChrome()
+        .frame(maxWidth: 600)
         .task(id: session.kanjiIndex) {
             await loadReference()
         }
@@ -395,8 +423,10 @@ struct KanjiPreQuizCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
                 Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundStyle(result.passed ? .green : .red)
+                    .foregroundStyle(result.passed ? Color.vermillion : .red)
                     .font(.title)
+                    .symbolEffect(.bounce, value: result.passed)
+                    .transition(.scale.combined(with: .opacity))
                 Text(result.passed ? "Correct!" : "Not quite")
                     .font(.title2)
                     .bold()
@@ -506,7 +536,7 @@ struct KanjiStudyCard: View {
                     .foregroundStyle(.secondary)
 
                 Text(String(kanji))
-                    .font(.system(size: 96, weight: .regular, design: .serif))
+                    .font(.displayKanji)
 
                 infoSection
 
@@ -531,7 +561,8 @@ struct KanjiStudyCard: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(.horizontal, 32)
+        .cardChrome()
+        .frame(maxWidth: 640)
         .task(id: session.studyKanjiIndex) {
             await loadKanji()
         }
@@ -682,7 +713,7 @@ struct WordStudyCard: View {
                 }
 
                 Text(word.text)
-                    .font(.system(size: 72, weight: .regular, design: .serif))
+                    .font(.displayWord)
 
                 if let definition = word.definition {
                     Text(definition)
@@ -731,7 +762,8 @@ struct WordStudyCard: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(.horizontal, 32)
+        .cardChrome()
+        .frame(maxWidth: 600)
     }
 }
 
@@ -754,21 +786,23 @@ struct TranslationCritiqueCard: View {
                 .frame(maxWidth: .infinity, alignment: .center)
 
             Text(session.sentence)
-                .font(.system(size: 32, weight: .regular, design: .serif))
+                .font(.sentenceLarge)
                 .multilineTextAlignment(.center)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
 
-            if critique != nil || critiqueError != nil {
-                resultView
-            } else {
-                inputView
+            Group {
+                if critique != nil || critiqueError != nil {
+                    resultView
+                } else {
+                    inputView
+                }
             }
+            .animation(.smooth(duration: 0.3), value: critique == nil)
         }
-        .padding(.horizontal, 32)
+        .cardChrome()
         .frame(maxWidth: 720)
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -907,11 +941,15 @@ struct SessionCompleteCard: View {
     @Bindable var session: StudySession
     let onFinish: () -> Void
 
+    @State private var bouncePulse: Int = 0
+
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(.green)
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 80))
+                .foregroundStyle(Color.vermillion)
+                .symbolEffect(.bounce, value: bouncePulse)
+                .onAppear { bouncePulse += 1 }
             Text("Session complete")
                 .font(.title)
                 .bold()
@@ -942,7 +980,7 @@ struct SessionCompleteCard: View {
             .keyboardShortcut(.defaultAction)
             .padding(.top, 12)
         }
-        .padding(40)
+        .cardChrome(padding: 40)
         .frame(maxWidth: 480)
     }
 }

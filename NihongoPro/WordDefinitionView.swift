@@ -11,53 +11,59 @@ struct WordDefinitionView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    HStack(alignment: .center, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(seenCountLabel)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            ZStack {
+                Color.paperBackground.ignoresSafeArea()
 
-                            wordHeader
-
-                            if word.reading != word.text {
-                                Text(word.reading)
-                                    .font(.title2)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        HStack(alignment: .center, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(seenCountLabel)
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
-                                    .textSelection(.enabled)
+
+                                wordHeader
+
+                                if word.reading != word.text {
+                                    Text(word.reading)
+                                        .font(.title2)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
                             }
-                        }
 
-                        Spacer()
+                            Spacer()
 
-                        Button {
-                            if speechService.isSpeaking {
-                                speechService.stop()
-                            } else {
-                                speechService.speak(word.text)
+                            Button {
+                                if speechService.isSpeaking {
+                                    speechService.stop()
+                                } else {
+                                    speechService.speak(word.text)
+                                }
+                            } label: {
+                                Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.tint)
+                                    .frame(width: 56, height: 56)
                             }
-                        } label: {
-                            Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
-                                .font(.largeTitle)
-                                .foregroundStyle(.tint)
-                                .frame(width: 56, height: 56)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(speechService.isSpeaking ? "Stop word audio" : "Play word audio")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(speechService.isSpeaking ? "Stop word audio" : "Play word audio")
-                    }
+                        .cardChrome()
 
-                    if let definition = word.definition {
-                        Divider()
-                        Text(definition)
-                            .font(.title3)
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let definition = word.definition {
+                            Text(definition)
+                                .font(.title3)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 8)
+                        }
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(32)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .navigationTitle("Definition")
             .navigationBarTitleDisplayMode(.inline)

@@ -47,6 +47,7 @@ final class StudySession: Identifiable {
         var seenWords = Set<String>()
         let uniqueWords = words.filter { word in
             guard !Self.isPunctuation(word.text) else { return false }
+            guard !Self.commonParticles.contains(word.text) else { return false }
             return seenWords.insert(word.text).inserted
         }
         self.vocabPlan = uniqueWords.shuffled()
@@ -209,4 +210,13 @@ final class StudySession: Identifiable {
         let allowed = CharacterSet.punctuationCharacters.union(.whitespacesAndNewlines)
         return text.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
+
+    private static let commonParticles: Set<String> = [
+        "は", "が", "を", "に", "で", "と", "も", "か", "の", "へ", "や",
+        "ね", "よ", "な", "わ", "ぞ", "ぜ", "さ", "し",
+        "まで", "から", "など", "だけ", "ばかり", "しか",
+        "でも", "けど", "けれど", "けれども",
+        "には", "とは", "では", "のは", "のに", "ので",
+        "って"
+    ]
 }

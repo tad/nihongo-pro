@@ -23,20 +23,25 @@ struct ContentView: View {
     @State private var parsedInputText: String = ""
     @State private var autoParseTask: Task<Void, Never>?
     @State private var studySession: StudySession?
+    @FocusState private var isInputFocused: Bool
     @StateObject private var speechService = SpeechService()
 
     private let translator = TranslationService()
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                ScrollView {
-                    translationDisplay
+            ZStack {
+                Color.paperBackground.ignoresSafeArea()
+
+                VStack(spacing: 24) {
+                    ScrollView {
+                        translationDisplay
+                    }
+                    .frame(maxHeight: .infinity)
+                    inputArea
                 }
-                .frame(maxHeight: .infinity)
-                inputArea
+                .padding(32)
             }
-            .padding(32)
             .navigationTitle("Nihongo Pro")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -71,7 +76,7 @@ struct ContentView: View {
     }
 
     private var translationDisplay: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        Group {
             if words.isEmpty && isTranslating {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -83,53 +88,74 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 60)
             } else if words.isEmpty {
-                Text("Paste a Japanese sentence below — it'll appear here for you to read first.")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 40)
+                emptyState
             } else {
-                HStack(alignment: .top, spacing: 12) {
-                    FuriganaText(words: words) { word in
-                        selectedWord = WordSelection(word: word)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        if speechService.isSpeaking {
-                            speechService.stop()
-                        } else {
-                            speechService.speak(words.map(\.text).joined())
-                        }
-                    } label: {
-                        Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
-                            .font(.title)
-                            .foregroundStyle(.tint)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(speechService.isSpeaking ? "Stop audio" : "Play audio")
-                }
-
-                definitionsStatus
-
-                if isTranslationRevealed && !englishTranslation.isEmpty {
-                    Divider()
-
-                    if showingBreakdown {
-                        breakdownContent
-                    } else {
-                        Text(englishTranslation)
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
+                parsedSentenceCard
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "text.book.closed")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(Color.accentColor.opacity(0.55))
+            Text("Paste a Japanese sentence")
+                .font(.title3)
+                .foregroundStyle(.primary)
+            Text("It'll appear here for you to read before the translation reveals.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 60)
+    }
+
+    private var parsedSentenceCard: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top, spacing: 12) {
+                FuriganaText(words: words) { word in
+                    selectedWord = WordSelection(word: word)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    if speechService.isSpeaking {
+                        speechService.stop()
+                    } else {
+                        speechService.speak(words.map(\.text).joined())
+                    }
+                } label: {
+                    Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
+                        .font(.title)
+                        .foregroundStyle(.tint)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(speechService.isSpeaking ? "Stop audio" : "Play audio")
+            }
+
+            definitionsStatus
+
+            if isTranslationRevealed && !englishTranslation.isEmpty {
+                Divider()
+
+                if showingBreakdown {
+                    breakdownContent
+                } else {
+                    Text(englishTranslation)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .cardChrome()
     }
 
     @ViewBuilder
@@ -202,10 +228,19 @@ struct ContentView: View {
         VStack(alignment: .trailing, spacing: 12) {
             TextEditor(text: $inputText)
                 .font(.system(size: 22, design: .serif))
+                .focused($isInputFocused)
                 .frame(minHeight: 120, maxHeight: 180)
                 .padding(8)
                 .background(Color(.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(
+                            isInputFocused ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.2),
+                            lineWidth: 1
+                        )
+                )
+                .animation(.smooth(duration: 0.2), value: isInputFocused)
                 .overlay(alignment: .topLeading) {
                     if inputText.isEmpty {
                         Text("日本語をここに貼り付けてください…")

@@ -18,7 +18,8 @@ struct BreakdownView: View {
         case .heading(let level, let text):
             Text(attributed(text))
                 .font(headingFont(level: level))
-                .padding(.top, level <= 2 ? 8 : 4)
+                .foregroundStyle(.primary)
+                .padding(.top, level <= 2 ? 12 : 4)
         case .paragraph(let text):
             Text(attributed(text))
                 .font(.body)
@@ -40,10 +41,10 @@ struct BreakdownView: View {
 
     private func headingFont(level: Int) -> Font {
         switch level {
-        case 1: return .title.bold()
-        case 2: return .title2.bold()
-        case 3: return .title3.bold()
-        default: return .headline
+        case 1: return .title.weight(.semibold)
+        case 2: return .title2.weight(.semibold)
+        case 3: return .headline
+        default: return .subheadline.weight(.semibold)
         }
     }
 
