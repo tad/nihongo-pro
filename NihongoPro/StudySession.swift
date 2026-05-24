@@ -5,7 +5,7 @@ import AudioToolbox
 @MainActor
 @Observable
 final class StudySession: Identifiable {
-    enum Phase: Equatable {
+    enum Phase: String, Codable, Equatable {
         case vocabPreQuiz
         case kanjiPreQuiz
         case kanjiStudy
@@ -74,6 +74,42 @@ final class StudySession: Identifiable {
         startWorkInterval()
     }
 
+    init(restoring saved: SavedSession) {
+        self.sentence = saved.sentence
+        self.referenceTranslation = saved.referenceTranslation
+        self.originalWords = saved.originalWords
+        self.vocabPlan = saved.vocabPlan
+        self.kanjiPlan = saved.kanjiPlan.compactMap { $0.first }
+        self.vocabIndex = saved.vocabIndex
+        self.kanjiIndex = saved.kanjiIndex
+        self.studyVocab = saved.studyVocab
+        self.studyKanji = saved.studyKanji.compactMap { $0.first }
+        self.studyVocabIndex = saved.studyVocabIndex
+        self.studyKanjiIndex = saved.studyKanjiIndex
+        self.phase = saved.phase
+
+        startWorkInterval()
+    }
+
+    func saveProgress() {
+        let snapshot = SavedSession(
+            sentence: sentence,
+            referenceTranslation: referenceTranslation,
+            originalWords: originalWords,
+            vocabPlan: vocabPlan,
+            kanjiPlan: kanjiPlan.map { String($0) },
+            vocabIndex: vocabIndex,
+            kanjiIndex: kanjiIndex,
+            studyVocab: studyVocab,
+            studyKanji: studyKanji.map { String($0) },
+            studyVocabIndex: studyVocabIndex,
+            studyKanjiIndex: studyKanjiIndex,
+            phase: phase,
+            savedAt: Date()
+        )
+        SavedSessionStore.shared.save(snapshot)
+    }
+
     var currentVocab: Word? {
         guard vocabIndex < vocabPlan.count else { return nil }
         return vocabPlan[vocabIndex]
@@ -92,6 +128,23 @@ final class StudySession: Identifiable {
     var currentStudyWord: Word? {
         guard studyVocabIndex < studyVocab.count else { return nil }
         return studyVocab[studyVocabIndex]
+    }
+
+    func skipToStudy() {
+        studyVocab = vocabPlan.shuffled()
+        studyKanji = kanjiPlan.shuffled()
+        studyVocabIndex = 0
+        studyKanjiIndex = 0
+        vocabIndex = vocabPlan.count
+        kanjiIndex = kanjiPlan.count
+
+        if !studyKanji.isEmpty {
+            phase = .kanjiStudy
+        } else if !studyVocab.isEmpty {
+            phase = .wordStudy
+        } else {
+            phase = .translation
+        }
     }
 
     func skipCurrentVocab() {

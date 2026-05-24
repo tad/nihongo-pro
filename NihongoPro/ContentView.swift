@@ -45,6 +45,18 @@ struct ContentView: View {
             .navigationTitle("Nihongo Pro")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if SavedSessionStore.shared.hasSavedSession {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            resumeSavedSession()
+                        } label: {
+                            Label("Resume last study session", systemImage: "arrow.uturn.backward.circle.fill")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingSettings = true
@@ -367,6 +379,12 @@ struct ContentView: View {
             words: words,
             referenceTranslation: englishTranslation
         )
+    }
+
+    private func resumeSavedSession() {
+        guard let saved = SavedSessionStore.shared.load() else { return }
+        SavedSessionStore.shared.clear()
+        studySession = StudySession(restoring: saved)
     }
 
     private func clear() {

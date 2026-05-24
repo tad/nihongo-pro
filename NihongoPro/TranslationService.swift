@@ -1,11 +1,11 @@
 import Foundation
 
-struct FuriganaSegment: Decodable {
+struct FuriganaSegment: Codable {
     let text: String
     let reading: String?
 }
 
-struct Word: Decodable {
+struct Word: Codable {
     let text: String
     let reading: String
     let furigana: [FuriganaSegment]

@@ -57,6 +57,11 @@ struct WordDefinitionView: View {
                                 NihongoLookupLink(kind: .word, query: word.text)
                                 Spacer()
                             }
+
+                            HStack {
+                                JishoLookupLink(kind: .word, query: word.text)
+                                Spacer()
+                            }
                         }
                         .cardChrome()
 

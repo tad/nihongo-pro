@@ -36,6 +36,11 @@ struct KanjiDetailView: View {
                             Spacer()
                         }
 
+                        HStack {
+                            JishoLookupLink(kind: .kanji, query: String(kanji))
+                            Spacer()
+                        }
+
                         Text(String(kanji))
                             .font(.displayKanji)
                             .frame(maxWidth: .infinity, alignment: .center)

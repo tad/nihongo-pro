@@ -39,6 +39,18 @@ struct StudySessionView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                if session.phase == .vocabPreQuiz || session.phase == .kanjiPreQuiz {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            session.skipToStudy()
+                        } label: {
+                            Label("Skip to study", systemImage: "forward.end.fill")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     PomodoroPill(session: session)
                 }
@@ -46,12 +58,17 @@ struct StudySessionView: View {
             .interactiveDismissDisabled(true)
             .alert("End study session?", isPresented: $showingEndConfirmation) {
                 Button("Continue studying", role: .cancel) { }
+                Button("Save & exit") {
+                    session.saveProgress()
+                    session.end()
+                    dismiss()
+                }
                 Button("End session", role: .destructive) {
                     session.end()
                     dismiss()
                 }
             } message: {
-                Text("Your progress will be discarded.")
+                Text("Save & exit keeps your progress so you can resume later. End session discards it.")
             }
             .onChange(of: session.phase) { _, newPhase in
                 if newPhase == .completed {

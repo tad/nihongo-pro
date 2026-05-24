@@ -27,6 +27,7 @@
 		FA00000000000000000000C5 /* StudySessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C4 /* StudySessionView.swift */; };
 		FA00000000000000000000C8 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C7 /* Theme.swift */; };
 		FA00000000000000000000CA /* FamiliarityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C9 /* FamiliarityStore.swift */; };
+		FA00000000000000000000CC /* SavedSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CB /* SavedSessionStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -51,6 +52,7 @@
 		FA00000000000000000000C4 /* StudySessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudySessionView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C7 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C9 /* FamiliarityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamiliarityStore.swift; sourceTree = "<group>"; };
+		FA00000000000000000000CB /* SavedSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSessionStore.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -95,6 +97,7 @@
 				FA00000000000000000000C4 /* StudySessionView.swift */,
 				FA00000000000000000000C7 /* Theme.swift */,
 				FA00000000000000000000C9 /* FamiliarityStore.swift */,
+				FA00000000000000000000CB /* SavedSessionStore.swift */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -198,6 +201,7 @@
 				FA00000000000000000000C5 /* StudySessionView.swift in Sources */,
 				FA00000000000000000000C8 /* Theme.swift in Sources */,
 				FA00000000000000000000CA /* FamiliarityStore.swift in Sources */,
+				FA00000000000000000000CC /* SavedSessionStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

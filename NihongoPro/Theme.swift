@@ -49,3 +49,36 @@ struct NihongoLookupLink: View {
         }
     }
 }
+
+struct JishoLookupLink: View {
+    enum Kind {
+        case word
+        case kanji
+    }
+
+    let kind: Kind
+    let query: String
+
+    private var url: URL? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let queryString: String
+        switch kind {
+        case .word: queryString = trimmed
+        case .kanji: queryString = "\(trimmed) #kanji"
+        }
+        guard let encoded = queryString.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
+        return URL(string: "https://jisho.org/search/\(encoded)")
+    }
+
+    var body: some View {
+        if let url {
+            Link(destination: url) {
+                Label("Look up in Jisho", systemImage: "arrow.up.forward.app")
+                    .font(.footnote)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+}
