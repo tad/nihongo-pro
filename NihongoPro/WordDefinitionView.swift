@@ -52,6 +52,11 @@ struct WordDefinitionView: View {
                             }
 
                             familiarityPicker
+
+                            HStack {
+                                NihongoLookupLink(kind: .word, query: word.text)
+                                Spacer()
+                            }
                         }
                         .cardChrome()
 

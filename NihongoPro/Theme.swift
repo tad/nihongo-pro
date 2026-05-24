@@ -14,3 +14,38 @@ extension View {
             .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 2)
     }
 }
+
+struct NihongoLookupLink: View {
+    enum Kind {
+        case word
+        case kanji
+
+        var pathSegment: String {
+            switch self {
+            case .word: return "word"
+            case .kanji: return "kanji"
+            }
+        }
+    }
+
+    let kind: Kind
+    let query: String
+
+    private var url: URL? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
+        return URL(string: "https://nihongo-app.com/dictionary/\(kind.pathSegment)/\(encoded)")
+    }
+
+    var body: some View {
+        if let url {
+            Link(destination: url) {
+                Label("Look up in Nihongo", systemImage: "arrow.up.forward.app")
+                    .font(.footnote)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+}

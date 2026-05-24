@@ -31,6 +31,11 @@ struct KanjiDetailView: View {
 
                         familiarityPicker
 
+                        HStack {
+                            NihongoLookupLink(kind: .kanji, query: String(kanji))
+                            Spacer()
+                        }
+
                         Text(String(kanji))
                             .font(.displayKanji)
                             .frame(maxWidth: .infinity, alignment: .center)
