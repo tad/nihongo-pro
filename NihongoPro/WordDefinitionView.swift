@@ -19,9 +19,11 @@ struct WordDefinitionView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(alignment: .center, spacing: 16) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(seenCountLabel)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    if seenCount > 0 {
+                                        Text(seenCountLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
 
                                     wordHeader
 

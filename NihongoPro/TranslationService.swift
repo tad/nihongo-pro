@@ -335,7 +335,7 @@ struct TranslationService {
         var uncachedIndices: [Int] = []
 
         for (i, word) in words.enumerated() {
-            if Self.isPurePunctuation(word) {
+            if JapaneseWordFilter.isPurePunctuation(word) {
                 continue
             }
             if let cached = await DefinitionCache.shared.definition(for: word) {
@@ -389,13 +389,6 @@ struct TranslationService {
         }
 
         return result
-    }
-
-    private static func isPurePunctuation(_ text: String) -> Bool {
-        guard !text.isEmpty else { return false }
-        let allowed = CharacterSet.punctuationCharacters
-            .union(.whitespacesAndNewlines)
-        return text.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
     private func sendMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {

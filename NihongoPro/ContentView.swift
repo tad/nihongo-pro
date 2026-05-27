@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var isTranslating: Bool = false
     @State private var errorMessage: String?
     @State private var showingSettings: Bool = false
+    @State private var showingStats: Bool = false
     @State private var selectedWord: WordSelection?
     @State private var isLoadingDefinitions: Bool = false
     @State private var definitionsError: String?
@@ -59,6 +60,14 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showingStats = true
+                    } label: {
+                        Image(systemName: "chart.bar.fill")
+                    }
+                    .accessibilityLabel("Progress")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showingSettings = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -67,6 +76,9 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView(speechService: speechService)
+            }
+            .sheet(isPresented: $showingStats) {
+                StatsView(translator: translator, speechService: speechService)
             }
             .sheet(item: $selectedWord) { selection in
                 WordDefinitionView(word: selection.word, translator: translator, speechService: speechService)
