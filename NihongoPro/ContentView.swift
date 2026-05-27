@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var parsedInputText: String = ""
     @State private var autoParseTask: Task<Void, Never>?
     @State private var studySession: StudySession?
+    @State private var showingEndSessionConfirmation: Bool = false
     @FocusState private var isInputFocused: Bool
     @StateObject private var speechService = SpeechService()
 
@@ -42,20 +43,28 @@ struct ContentView: View {
                     inputArea
                 }
                 .padding(32)
+
+                if let session = studySession, session.isOnBreak {
+                    breakOverlay(session: session)
+                        .transition(.scale(scale: 0.92).combined(with: .opacity))
+                }
             }
+            .animation(.spring(response: 0.45, dampingFraction: 0.78), value: studySession?.isOnBreak)
             .navigationTitle("Nihongo Pro")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if SavedSessionStore.shared.hasSavedSession {
-                    ToolbarItem(placement: .topBarLeading) {
+                if let session = studySession {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        PomodoroPill(session: session)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button {
-                            resumeSavedSession()
+                            showingEndSessionConfirmation = true
                         } label: {
-                            Label("Resume last study session", systemImage: "arrow.uturn.backward.circle.fill")
-                                .labelStyle(.titleAndIcon)
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .accessibilityLabel("End session")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -85,8 +94,14 @@ struct ContentView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
-            .fullScreenCover(item: $studySession) { session in
-                StudySessionView(session: session, translator: translator, speechService: speechService)
+            .alert("End session?", isPresented: $showingEndSessionConfirmation) {
+                Button("Keep going", role: .cancel) { }
+                Button("End session", role: .destructive) {
+                    studySession?.end()
+                    studySession = nil
+                }
+            } message: {
+                Text("The pomodoro timer will stop.")
             }
             .onAppear {
                 if KeychainStore.read() == nil {
@@ -96,6 +111,32 @@ struct ContentView: View {
             .onChange(of: inputText) { _, _ in
                 handleInputChange()
             }
+        }
+    }
+
+    private func breakOverlay(session: StudySession) -> some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+            VStack(spacing: 20) {
+                Image(systemName: "moon.stars.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(.orange)
+                Text("Take a break")
+                    .font(.title)
+                    .bold()
+                Text(session.pomodoroDisplay)
+                    .font(.system(size: 64, weight: .light, design: .rounded))
+                    .monospacedDigit()
+                Text("The session resumes automatically when the timer ends.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(40)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(radius: 20)
+            .padding(40)
         }
     }
 
@@ -347,7 +388,7 @@ struct ContentView: View {
                     .disabled(englishTranslation.isEmpty || isTranslating || isLoadingBreakdown)
                 }
 
-                if !words.isEmpty {
+                if !words.isEmpty && studySession == nil {
                     Button {
                         startStudySession()
                     } label: {
@@ -384,19 +425,8 @@ struct ContentView: View {
     }
 
     private func startStudySession() {
-        guard !words.isEmpty, !englishTranslation.isEmpty else { return }
-        let sentence = parsedInputText.isEmpty ? inputText.trimmingCharacters(in: .whitespacesAndNewlines) : parsedInputText
-        studySession = StudySession(
-            sentence: sentence,
-            words: words,
-            referenceTranslation: englishTranslation
-        )
-    }
-
-    private func resumeSavedSession() {
-        guard let saved = SavedSessionStore.shared.load() else { return }
-        SavedSessionStore.shared.clear()
-        studySession = StudySession(restoring: saved)
+        guard studySession == nil else { return }
+        studySession = StudySession()
     }
 
     private func clear() {
@@ -554,4 +584,31 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+private struct PomodoroPill: View {
+    @Bindable var session: StudySession
+
+    var body: some View {
+        let tint: Color = session.isOnBreak ? .orange : .accentColor
+        HStack(spacing: 6) {
+            Image(systemName: session.isOnBreak ? "moon.fill" : "timer")
+                .font(.caption)
+                .contentTransition(.symbolEffect(.replace))
+            Text(session.pomodoroDisplay)
+                .font(.callout)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .foregroundStyle(session.isOnBreak ? .orange : .primary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(tint.opacity(0.12), in: Capsule())
+        .overlay(
+            Capsule().strokeBorder(tint.opacity(0.65), lineWidth: 1.5)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+        .animation(.smooth(duration: 0.3), value: session.isOnBreak)
+        .animation(.smooth(duration: 0.25), value: session.pomodoroDisplay)
+    }
 }
