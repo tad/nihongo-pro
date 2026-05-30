@@ -14,6 +14,7 @@ enum ExportService {
         let wordFamiliarity: [String: FamiliarityStore.Level]
         let kanjiFamiliarity: [String: FamiliarityStore.Level]
         let dailyActivity: [String: Int]
+        let dailyStudySessions: [String: Int]
         let savedSentences: [SavedSentence]
     }
 
@@ -37,6 +38,7 @@ enum ExportService {
             wordFamiliarity: familiarity.wordLevels,
             kanjiFamiliarity: familiarity.kanjiLevels,
             dailyActivity: activity.dailyCounts,
+            dailyStudySessions: activity.dailySessions,
             savedSentences: saved.sentences
         )
 

@@ -14,8 +14,12 @@ final class ActivityTracker {
 
     /// Keyed by local-day string `yyyy-MM-dd` → number of sentences parsed that day.
     private(set) var dailyCounts: [String: Int] = [:]
+    /// Keyed by local-day string `yyyy-MM-dd` → number of pomodoro work blocks
+    /// completed that day (counted when the 25-minute work timer finishes).
+    private(set) var dailySessions: [String: Int] = [:]
 
     private let storeURL: URL
+    private let sessionsURL: URL
     private let calendar = Calendar.current
 
     private static let dayFormatter: DateFormatter = {
@@ -28,10 +32,15 @@ final class ActivityTracker {
     private init() {
         let dir = Self.storeDirectory()
         self.storeURL = dir.appendingPathComponent("daily_activity.json")
+        self.sessionsURL = dir.appendingPathComponent("daily_sessions.json")
 
         if let data = try? Data(contentsOf: storeURL),
            let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
             self.dailyCounts = decoded
+        }
+        if let data = try? Data(contentsOf: sessionsURL),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            self.dailySessions = decoded
         }
     }
 
@@ -42,9 +51,26 @@ final class ActivityTracker {
         persist()
     }
 
+    /// Called when a pomodoro 25-minute work block completes.
+    func recordStudySession(on date: Date = Date()) {
+        let key = Self.dayFormatter.string(from: date)
+        dailySessions[key, default: 0] += 1
+        persistSessions()
+    }
+
     /// Sentences parsed today.
     var todayCount: Int {
         dailyCounts[Self.dayFormatter.string(from: Date())] ?? 0
+    }
+
+    /// Total pomodoro work blocks completed, all time.
+    var totalStudySessions: Int {
+        dailySessions.values.reduce(0, +)
+    }
+
+    /// Pomodoro work blocks completed today.
+    var todayStudySessions: Int {
+        dailySessions[Self.dayFormatter.string(from: Date())] ?? 0
     }
 
     /// Number of distinct days with at least one parse.
@@ -74,13 +100,22 @@ final class ActivityTracker {
         return streak
     }
 
-    /// Counts for the last `days` days, oldest first, as `(date, count)` pairs —
-    /// drives the recent-activity bar chart. Days with no activity yield 0.
+    /// Parse counts for the last `days` days, oldest first, as `(date, count)` pairs
+    /// — drives the recent-activity bar chart. Days with no activity yield 0.
     func recentDays(_ days: Int) -> [(date: Date, count: Int)] {
+        recent(days, in: dailyCounts)
+    }
+
+    /// Completed-study-session counts for the last `days` days, oldest first.
+    func recentStudySessions(_ days: Int) -> [(date: Date, count: Int)] {
+        recent(days, in: dailySessions)
+    }
+
+    private func recent(_ days: Int, in dict: [String: Int]) -> [(date: Date, count: Int)] {
         let today = calendar.startOfDay(for: Date())
         return (0..<days).reversed().compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
-            let count = dailyCounts[Self.dayFormatter.string(from: day)] ?? 0
+            let count = dict[Self.dayFormatter.string(from: day)] ?? 0
             return (date: day, count: count)
         }
     }
@@ -88,6 +123,15 @@ final class ActivityTracker {
     private func persist() {
         let snapshot = dailyCounts
         let url = storeURL
+        Task.detached {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    private func persistSessions() {
+        let snapshot = dailySessions
+        let url = sessionsURL
         Task.detached {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: url, options: .atomic)

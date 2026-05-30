@@ -100,21 +100,31 @@ struct StatsView: View {
                     GridItem(.flexible(), spacing: 12),
                     GridItem(.flexible(), spacing: 12),
                     GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12),
                 ],
                 spacing: 12
             ) {
                 SummaryCard(label: "Day streak", value: activity.currentStreak, icon: "flame.fill", accent: .vermillion)
+                SummaryCard(label: "Sessions", value: activity.totalStudySessions, icon: "timer")
                 SummaryCard(label: "Days studied", value: activity.daysStudied, icon: "calendar")
                 SummaryCard(label: "Today", value: activity.todayCount, icon: "sun.max.fill")
             }
 
             Divider()
 
-            Text("Last 14 days")
+            Text("Sentences · last 14 days")
                 .font(.headline)
                 .foregroundStyle(.secondary)
 
             ActivityChart(days: activity.recentDays(14))
+
+            Divider()
+
+            Text("Study sessions · last 14 days")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            ActivityChart(days: activity.recentStudySessions(14))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardChrome()

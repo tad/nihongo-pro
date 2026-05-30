@@ -148,6 +148,11 @@ struct ContentView: View {
             .onChange(of: inputText) { _, _ in
                 handleInputChange()
             }
+            .onChange(of: studySession?.isFinished) { _, finished in
+                if finished == true {
+                    studySession = nil
+                }
+            }
         }
     }
 
@@ -164,7 +169,7 @@ struct ContentView: View {
                 Text(session.pomodoroDisplay)
                     .font(.system(size: 64, weight: .light, design: .rounded))
                     .monospacedDigit()
-                Text("The session resumes automatically when the timer ends.")
+                Text("Your study session ends when the break is over.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
