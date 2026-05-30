@@ -2,6 +2,10 @@ import SwiftUI
 
 struct FuriganaText: View {
     let words: [Word]
+    var showFurigana: Bool = false
+    /// Reading-drill mode: all furigana is hidden and tapping a word reveals just
+    /// its reading inline (instead of opening the definition modal).
+    var drillMode: Bool = false
     var baseFont: Font = .system(size: 44, weight: .regular, design: .serif)
     var rubyFont: Font = .system(size: 18, weight: .regular, design: .serif)
     var rubyColor: Color = .secondary
@@ -9,26 +13,63 @@ struct FuriganaText: View {
     var lineSpacing: CGFloat = 14
     var onWordTap: (Word) -> Void = { _ in }
 
+    /// Indices whose reading has been revealed in drill mode. Reset whenever the
+    /// sentence changes so reveals never leak across parses.
+    @State private var revealedIndices: Set<Int> = []
+
     var body: some View {
         let store = FamiliarityStore.shared
         FuriganaFlowLayout(spacing: wordSpacing, lineSpacing: lineSpacing) {
             ForEach(words.indices, id: \.self) { index in
                 let word = words[index]
-                Button {
-                    onWordTap(word)
-                } label: {
-                    WordView(
-                        word: word,
-                        baseFont: baseFont,
-                        rubyFont: rubyFont,
-                        rubyColor: rubyColor,
-                        hideFurigana: Self.shouldHideFurigana(for: word, store: store)
-                    )
+                if drillMode {
+                    let revealable = Self.hasReading(word)
+                    Button {
+                        guard revealable else { return }
+                        if revealedIndices.contains(index) {
+                            revealedIndices.remove(index)
+                        } else {
+                            revealedIndices.insert(index)
+                        }
+                    } label: {
+                        WordView(
+                            word: word,
+                            baseFont: baseFont,
+                            rubyFont: rubyFont,
+                            rubyColor: rubyColor,
+                            hideFurigana: !revealedIndices.contains(index),
+                            underline: revealable
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!revealable)
+                } else {
+                    Button {
+                        onWordTap(word)
+                    } label: {
+                        WordView(
+                            word: word,
+                            baseFont: baseFont,
+                            rubyFont: rubyFont,
+                            rubyColor: rubyColor,
+                            hideFurigana: !showFurigana || Self.shouldHideFurigana(for: word, store: store),
+                            underline: word.definition != nil
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(word.definition == nil)
                 }
-                .buttonStyle(.plain)
-                .disabled(word.definition == nil)
             }
         }
+        .onChange(of: words.map(\.text).joined()) { _, _ in
+            revealedIndices = []
+        }
+    }
+
+    /// A word can be drilled if it has at least one furigana segment with a reading
+    /// to reveal (i.e. it contains kanji). Pure-kana words have nothing to test.
+    private static func hasReading(_ word: Word) -> Bool {
+        word.furigana.contains { $0.reading != nil }
     }
 
     private static func shouldHideFurigana(for word: Word, store: FamiliarityStore) -> Bool {
@@ -45,6 +86,8 @@ private struct WordView: View {
     let rubyFont: Font
     let rubyColor: Color
     let hideFurigana: Bool
+    /// Whether to draw the accent underline that marks the word as tappable.
+    let underline: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -63,7 +106,7 @@ private struct WordView: View {
         }
         .padding(.bottom, 3)
         .overlay(alignment: .bottom) {
-            if word.definition != nil {
+            if underline {
                 Rectangle()
                     .fill(.tint)
                     .frame(height: 1.5)

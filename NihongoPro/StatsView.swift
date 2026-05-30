@@ -11,9 +11,11 @@ struct StatsView: View {
 
     @State private var selectedWord: WordSelection?
     @State private var selectedKanji: KanjiSelection?
+    @State private var exportItem: ExportItem?
 
     private let topListLimit = 25
     private let familiarity = FamiliarityStore.shared
+    private let activity = ActivityTracker.shared
 
     var body: some View {
         NavigationStack {
@@ -38,6 +40,19 @@ struct StatsView: View {
             .navigationTitle("Progress")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        Task {
+                            if let url = await ExportService.makeExportFile() {
+                                exportItem = ExportItem(url: url)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel("Export progress")
+                    .disabled(wordCounts.isEmpty && kanjiCounts.isEmpty)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
@@ -58,17 +73,51 @@ struct StatsView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(item: $exportItem) { item in
+                ShareSheet(url: item.url)
+            }
         }
     }
 
     private var content: some View {
         VStack(spacing: 20) {
             summaryCards
+            activitySection
             wordsSection
             kanjiSection
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
+    }
+
+    private var activitySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Activity")
+                .font(.title3.weight(.semibold))
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12),
+                ],
+                spacing: 12
+            ) {
+                SummaryCard(label: "Day streak", value: activity.currentStreak, icon: "flame.fill", accent: .vermillion)
+                SummaryCard(label: "Days studied", value: activity.daysStudied, icon: "calendar")
+                SummaryCard(label: "Today", value: activity.todayCount, icon: "sun.max.fill")
+            }
+
+            Divider()
+
+            Text("Last 14 days")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            ActivityChart(days: activity.recentDays(14))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardChrome()
     }
 
     private var emptyState: some View {
@@ -290,6 +339,47 @@ private struct WordSelection: Identifiable {
 private struct KanjiSelection: Identifiable {
     let id = UUID()
     let character: Character
+}
+
+private struct ExportItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// A compact bar chart of the last N days of parsing activity. Bars grow upward from
+/// a shared baseline above narrow weekday labels; today's bar is vermillion-accented.
+private struct ActivityChart: View {
+    let days: [(date: Date, count: Int)]
+
+    private var maxCount: Int { max(days.map(\.count).max() ?? 0, 1) }
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                VStack(spacing: 6) {
+                    Spacer(minLength: 0)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(isToday(day.date) ? Color.vermillion : Color.accentColor.opacity(day.count > 0 ? 0.7 : 0.15))
+                        .frame(height: barHeight(day.count))
+                    Text(day.date, format: .dateTime.weekday(.narrow))
+                        .font(.caption2)
+                        .foregroundStyle(isToday(day.date) ? Color.vermillion : .secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(height: 96)
+    }
+
+    private func barHeight(_ count: Int) -> CGFloat {
+        let maxBar: CGFloat = 64
+        guard count > 0 else { return 3 }
+        return max(6, maxBar * CGFloat(count) / CGFloat(maxCount))
+    }
+
+    private func isToday(_ date: Date) -> Bool {
+        Calendar.current.isDateInToday(date)
+    }
 }
 
 private struct SummaryCard: View {

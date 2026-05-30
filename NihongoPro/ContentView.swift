@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @State private var showingSettings: Bool = false
     @State private var showingStats: Bool = false
+    @State private var showingLibrary: Bool = false
+    @State private var drillMode: Bool = false
     @State private var selectedWord: WordSelection?
     @State private var isLoadingDefinitions: Bool = false
     @State private var definitionsError: String?
@@ -25,6 +27,7 @@ struct ContentView: View {
     @State private var autoParseTask: Task<Void, Never>?
     @State private var studySession: StudySession?
     @State private var showingEndSessionConfirmation: Bool = false
+    @AppStorage("showFurigana") private var showFurigana: Bool = false
     @FocusState private var isInputFocused: Bool
     @StateObject private var speechService = SpeechService()
 
@@ -69,6 +72,35 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        drillMode.toggle()
+                    } label: {
+                        Image(systemName: drillMode ? "graduationcap.fill" : "graduationcap")
+                            .contentTransition(.symbolEffect(.replace))
+                            .foregroundStyle(drillMode ? Color.accentColor : .secondary)
+                    }
+                    .accessibilityLabel(drillMode ? "Exit reading drill" : "Reading drill")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showFurigana.toggle()
+                    } label: {
+                        Image(systemName: showFurigana ? "character.book.closed.fill" : "character.book.closed")
+                            .contentTransition(.symbolEffect(.replace))
+                            .foregroundStyle(showFurigana ? Color.accentColor : .secondary)
+                    }
+                    .accessibilityLabel(showFurigana ? "Hide furigana" : "Show furigana")
+                    .disabled(drillMode)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingLibrary = true
+                    } label: {
+                        Image(systemName: "books.vertical")
+                    }
+                    .accessibilityLabel("Saved sentences")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showingStats = true
                     } label: {
                         Image(systemName: "chart.bar.fill")
@@ -88,6 +120,11 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingStats) {
                 StatsView(translator: translator, speechService: speechService)
+            }
+            .sheet(isPresented: $showingLibrary) {
+                LibraryView { sentence in
+                    load(sentence)
+                }
             }
             .sheet(item: $selectedWord) { selection in
                 WordDefinitionView(word: selection.word, translator: translator, speechService: speechService)
@@ -182,25 +219,40 @@ struct ContentView: View {
     private var parsedSentenceCard: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .top, spacing: 12) {
-                FuriganaText(words: words) { word in
+                FuriganaText(words: words, showFurigana: showFurigana, drillMode: drillMode) { word in
                     selectedWord = WordSelection(word: word)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button {
-                    if speechService.isSpeaking {
-                        speechService.stop()
-                    } else {
-                        speechService.speak(words.map(\.text).joined())
+                VStack(spacing: 12) {
+                    Button {
+                        if speechService.isSpeaking {
+                            speechService.stop()
+                        } else {
+                            speechService.speak(words.map(\.text).joined())
+                        }
+                    } label: {
+                        Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
+                            .font(.title)
+                            .foregroundStyle(.tint)
+                            .frame(width: 44, height: 44)
                     }
-                } label: {
-                    Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
-                        .font(.title)
-                        .foregroundStyle(.tint)
-                        .frame(width: 44, height: 44)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(speechService.isSpeaking ? "Stop audio" : "Play audio")
+
+                    Button {
+                        toggleSaved()
+                    } label: {
+                        Image(systemName: isCurrentSentenceSaved ? "bookmark.fill" : "bookmark")
+                            .font(.title2)
+                            .contentTransition(.symbolEffect(.replace))
+                            .foregroundStyle(isCurrentSentenceSaved ? Color.accentColor : .secondary)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(englishTranslation.isEmpty)
+                    .accessibilityLabel(isCurrentSentenceSaved ? "Remove from saved sentences" : "Save sentence")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(speechService.isSpeaking ? "Stop audio" : "Play audio")
             }
 
             definitionsStatus
@@ -429,6 +481,43 @@ struct ContentView: View {
         studySession = StudySession()
     }
 
+    private var isCurrentSentenceSaved: Bool {
+        !parsedInputText.isEmpty && SavedSentenceStore.shared.isSaved(parsedInputText)
+    }
+
+    private func toggleSaved() {
+        guard !words.isEmpty, !parsedInputText.isEmpty else { return }
+        SavedSentenceStore.shared.toggle(
+            text: parsedInputText,
+            words: words,
+            englishTranslation: englishTranslation
+        )
+    }
+
+    /// Reloads a bookmarked sentence into the main display. Sets `parsedInputText`
+    /// before `inputText` so the `onChange` auto-parse handler sees them equal and
+    /// bails — the saved parse (furigana + definitions) is reused as-is, no network.
+    private func load(_ sentence: SavedSentence) {
+        autoParseTask?.cancel()
+        autoParseTask = nil
+        if speechService.isSpeaking {
+            speechService.stop()
+        }
+        words = sentence.words
+        englishTranslation = sentence.englishTranslation
+        parsedInputText = sentence.text
+        inputText = sentence.text
+        isTranslationRevealed = false
+        showingBreakdown = false
+        breakdown = nil
+        breakdownError = nil
+        errorMessage = nil
+        definitionsError = nil
+        isLoadingDefinitions = false
+        isLoadingBreakdown = false
+        isTranslating = false
+    }
+
     private func clear() {
         autoParseTask?.cancel()
         autoParseTask = nil
@@ -502,6 +591,7 @@ struct ContentView: View {
             englishTranslation = result.englishTranslation
             parsedInputText = trimmed
             await FrequencyTracker.shared.recordSentence(words: result.words)
+            ActivityTracker.shared.recordParse()
             speechService.speak(trimmed)
         } catch let error as TranslationError {
             guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
