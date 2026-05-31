@@ -10,6 +10,45 @@ struct Word: Codable {
     let reading: String
     let furigana: [FuriganaSegment]
     var definition: String?
+
+    /// Set by pass 1: `true` when the word's kanji reading is uncommon/non-obvious enough that
+    /// a TTS engine would likely mispronounce it (rare or technical compounds, unusual name
+    /// readings, ateji/gikun — e.g. 精米歩合 → せいまいぶあい). Sentence speech swaps just these
+    /// words to their kana reading while leaving common words as kanji, so the bulk of the
+    /// sentence keeps natural prosody. `nil`/`false` → speak the surface form. Optional so old
+    /// saved sentences and responses missing the field decode fine (treated as `false`).
+    let ttsKana: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case text, reading, furigana, definition
+        case ttsKana = "tts_kana"
+    }
+
+    init(text: String, reading: String, furigana: [FuriganaSegment], definition: String? = nil, ttsKana: Bool? = nil) {
+        self.text = text
+        self.reading = reading
+        self.furigana = furigana
+        self.definition = definition
+        self.ttsKana = ttsKana
+    }
+
+    /// Kana to speak when pronouncing this word *in isolation* (the per-word definition
+    /// button). A lone uncommon kanji compound (e.g. 精米歩合) has no surrounding context for
+    /// a TTS normalizer to lean on, so the guaranteed-correct pass-1 `reading` is used; falls
+    /// back to the surface form for pure-kana/punctuation words.
+    var spokenText: String {
+        let kana = reading.trimmingCharacters(in: .whitespacesAndNewlines)
+        return kana.isEmpty ? text : kana
+    }
+}
+
+extension Array where Element == Word {
+    /// The sentence prepared for TTS: natural kanji surface forms throughout, except words
+    /// pass 1 flagged (`ttsKana == true`) as having tricky readings, which are swapped to their
+    /// kana so they're pronounced correctly without flattening the whole sentence to kana.
+    var sentenceSpeechText: String {
+        map { $0.ttsKana == true ? $0.spokenText : $0.text }.joined()
+    }
 }
 
 struct KanjiInfo: Codable {
@@ -62,6 +101,7 @@ struct TranslationService {
       - "text": the surface form of the word as written (e.g., "今日", "良い", "は", "。")
       - "reading": the full hiragana reading of the word (always provided; for words with no kanji, this equals "text")
       - "furigana": an array of {text, reading} display segments for the word. "reading" is the hiragana reading for kanji-only segments and null for kana/punctuation segments. Concatenating the segments' "text" must equal the word's "text".
+      - "tts_kana": a boolean for text-to-speech. Set true ONLY when the word's kanji reading is uncommon or non-obvious enough that a Japanese TTS engine would likely mispronounce it — e.g. rare or technical/specialist compounds (精米歩合 → せいまいぶあい), unusual proper-noun/name readings, ateji, or gikun. Set false for ordinary everyday vocabulary whose reading a TTS engine handles reliably (今日, 良い, 天気, 食べる, particles, copulas) and for any word with no kanji. When unsure, prefer false. This flag controls whether the sentence is spoken using the kanji (false) or the kana reading (true) for that word; over-flagging makes speech sound flat, so be conservative.
 
     Do NOT include definitions in this response — definitions are fetched separately.
 
@@ -76,7 +116,9 @@ struct TranslationService {
     JSON escaping: every string value must be valid JSON. If the input contains an ASCII double-quote character ("), it must appear as \\" inside the relevant "text", "reading", and "furigana" string values. Backslashes must appear as \\\\. Typographic/curly quotes (" " ' ') and the fullwidth quotation marks (「」『』) do NOT need escaping. Treat unusual symbols (®, ™, ・, etc.) as their own word entries with reading equal to text.
 
     Example for input "今日は良い天気ですね。":
-    {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}]},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}]},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}]},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}]},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}]},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}]},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}]}],"translation":"It's nice weather today, isn't it?"}
+    {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}],"tts_kana":false},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}],"tts_kana":false},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}],"tts_kana":false},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}],"tts_kana":false},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}],"tts_kana":false},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}],"tts_kana":false},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}],"tts_kana":false}],"translation":"It's nice weather today, isn't it?"}
+
+    Example of a word that needs the flag (rare/technical reading): for the word 精米歩合 the object would be {"text":"精米歩合","reading":"せいまいぶあい","furigana":[{"text":"精米歩合","reading":"せいまいぶあい"}],"tts_kana":true}.
     """
 
     private static let definitionsSystemPrompt = """

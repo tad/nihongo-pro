@@ -41,7 +41,7 @@ struct WordDefinitionView: View {
                                     if speechService.isSpeaking {
                                         speechService.stop()
                                     } else {
-                                        speechService.speak(word.text)
+                                        speechService.speak(word.spokenText)
                                     }
                                 } label: {
                                     Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")

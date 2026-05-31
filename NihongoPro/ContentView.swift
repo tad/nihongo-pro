@@ -234,7 +234,7 @@ struct ContentView: View {
                         if speechService.isSpeaking {
                             speechService.stop()
                         } else {
-                            speechService.speak(words.map(\.text).joined())
+                            speechService.speak(words.sentenceSpeechText)
                         }
                     } label: {
                         Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
@@ -597,7 +597,9 @@ struct ContentView: View {
             parsedInputText = trimmed
             await FrequencyTracker.shared.recordSentence(words: result.words)
             ActivityTracker.shared.recordParse()
-            speechService.speak(trimmed)
+            // Mostly natural kanji (natural prosody), with only pass-1-flagged tricky-reading
+            // words swapped to kana so rare compounds (精米歩合) are pronounced correctly.
+            speechService.speak(result.words.sentenceSpeechText)
         } catch let error as TranslationError {
             guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
                 isTranslating = false

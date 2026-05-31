@@ -3,19 +3,24 @@ import Security
 
 enum KeychainStore {
     private static let service = "com.terrydonaghe.NihongoPro"
-    private static let account = "anthropic-api-key"
+
+    /// Distinct accounts under the same Keychain service — one per API provider.
+    enum Account: String {
+        case anthropic = "anthropic-api-key"
+        case elevenLabs = "elevenlabs-api-key"
+    }
 
     enum KeychainError: Error {
         case unexpectedStatus(OSStatus)
     }
 
-    static func save(_ key: String) throws {
+    static func save(_ key: String, account: Account = .anthropic) throws {
         let data = Data(key.utf8)
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account.rawValue
         ]
 
         let attributes: [String: Any] = [
@@ -40,11 +45,11 @@ enum KeychainStore {
         }
     }
 
-    static func read() -> String? {
+    static func read(account: Account = .anthropic) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account.rawValue,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -60,11 +65,11 @@ enum KeychainStore {
         return key
     }
 
-    static func delete() throws {
+    static func delete(account: Account = .anthropic) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account.rawValue
         ]
 
         let status = SecItemDelete(query as CFDictionary)
