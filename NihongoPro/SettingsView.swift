@@ -12,21 +12,23 @@ struct SettingsView: View {
     @AppStorage("speechRate") private var speechRateRaw: String = SpeechRate.natural.rawValue
     @AppStorage("speechVoiceIdentifier") private var speechVoiceIdentifier: String = ""
 
-    // Premium voice (ElevenLabs)
-    @AppStorage("usePremiumVoice") private var usePremiumVoice: Bool = false
-    @AppStorage("elevenVoiceID") private var elevenVoiceID: String = ""
-    @AppStorage("elevenVoiceName") private var elevenVoiceName: String = ""
-    @State private var elevenKey: String = ""
-    @State private var hasElevenKey: Bool
-    @State private var japaneseVoices: [ElevenLabsService.SharedVoice] = []
-    @State private var voicesLoading = false
-    @State private var selectingVoiceID: String?
-    @State private var elevenError: String?
+    // Which engine synthesizes speech.
+    @AppStorage("voiceEngine") private var voiceEngineRaw: String = VoiceEngine.apple.rawValue
+
+    // Premium voice (Azure)
+    @AppStorage("azureRegion") private var azureRegion: String = ""
+    @AppStorage("azureVoiceName") private var azureVoiceName: String = ""
+    @AppStorage("azureVoiceStyle") private var azureVoiceStyle: String = ""
+    @State private var azureKey: String = ""
+    @State private var hasAzureKey: Bool
+    @State private var azureVoices: [AzureSpeechService.Voice] = []
+    @State private var azureVoicesLoading = false
+    @State private var azureError: String?
 
     init(speechService: SpeechService) {
         self.speechService = speechService
         _hasExistingKey = State(initialValue: KeychainStore.read() != nil)
-        _hasElevenKey = State(initialValue: KeychainStore.read(account: .elevenLabs) != nil)
+        _hasAzureKey = State(initialValue: KeychainStore.read(account: .azure) != nil)
     }
 
     var body: some View {
@@ -44,12 +46,12 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Picker("Voice", selection: $speechVoiceIdentifier) {
-                        Text("Auto (best quality)").tag("")
-                        ForEach(SpeechService.availableJapaneseVoices(), id: \.identifier) { voice in
-                            Text(voiceLabel(voice)).tag(voice.identifier)
+                    Picker("Engine", selection: $voiceEngineRaw) {
+                        ForEach(VoiceEngine.allCases) { engine in
+                            Text(engine.label).tag(engine.rawValue)
                         }
                     }
+                    .pickerStyle(.segmented)
                     Picker("Rate", selection: $speechRateRaw) {
                         ForEach(SpeechRate.allCases) { rate in
                             Text(rate.label).tag(rate.rawValue)
@@ -59,58 +61,82 @@ struct SettingsView: View {
                         speechService.speak("こんにちは、日本語を話しています。")
                     }
                 } header: {
-                    Text("Speech")
+                    Text("Voice Engine")
                 } footer: {
-                    Text("The on-device voice. Used offline and whenever the premium voice is off. Download more Japanese voices in iPadOS Settings → Accessibility → Spoken Content → Voices → Japanese, then fully quit and reopen Nihongo Pro for them to appear here.")
+                    Text("Which engine speaks. On-device works offline and free; Azure is a more capable cloud voice that needs your own key below. Play Sample uses the selected engine (falling back to on-device if its key is missing). Rate applies to both.")
                 }
 
                 Section {
-                    Toggle("Use premium voice", isOn: $usePremiumVoice)
+                    Picker("Voice", selection: $speechVoiceIdentifier) {
+                        Text("Auto (best quality)").tag("")
+                        ForEach(SpeechService.availableJapaneseVoices(), id: \.identifier) { voice in
+                            Text(voiceLabel(voice)).tag(voice.identifier)
+                        }
+                    }
+                } header: {
+                    Text("On-device Voice")
+                } footer: {
+                    Text("The Apple voice. Used offline and whenever Azure is unavailable. Download more Japanese voices in iPadOS Settings → Accessibility → Spoken Content → Voices → Japanese, then fully quit and reopen Nihongo Pro for them to appear here.")
+                }
 
-                    SecureField("ElevenLabs API key", text: $elevenKey)
+                Section {
+                    SecureField("Azure Speech key", text: $azureKey)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .font(.system(.body, design: .monospaced))
-                    Button(hasElevenKey ? "Update Key" : "Save Key") { saveElevenKey() }
-                        .disabled(elevenKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                    TextField("Region (e.g. westus2)", text: $azureRegion)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button(hasAzureKey ? "Update Key" : "Save Key") { saveAzureKey() }
+                        .disabled(azureKey.trimmingCharacters(in: .whitespaces).isEmpty
+                                  || azureRegion.trimmingCharacters(in: .whitespaces).isEmpty)
 
-                    if hasElevenKey {
-                        if !elevenVoiceName.isEmpty {
+                    if hasAzureKey {
+                        if !azureVoiceName.isEmpty {
                             HStack {
                                 Text("Selected voice")
                                 Spacer()
-                                Text(elevenVoiceName).foregroundStyle(.secondary)
+                                Text(azureVoiceDisplayName).foregroundStyle(.secondary)
                             }
                         }
 
-                        if voicesLoading {
+                        if !selectedVoiceStyles.isEmpty {
+                            Picker("Style", selection: $azureVoiceStyle) {
+                                Text("Default").tag("")
+                                ForEach(selectedVoiceStyles, id: \.self) { style in
+                                    Text(styleLabel(style)).tag(style)
+                                }
+                            }
+                        }
+
+                        if azureVoicesLoading {
                             HStack {
                                 ProgressView().controlSize(.small)
                                 Text("Loading Japanese voices…").foregroundStyle(.secondary)
                             }
-                        } else if japaneseVoices.isEmpty {
-                            Button("Load Japanese voices") { loadVoices() }
+                        } else if azureVoices.isEmpty {
+                            Button("Load Japanese voices") { loadAzureVoices() }
                         } else {
-                            ForEach(japaneseVoices) { voice in
-                                voiceRow(voice)
+                            ForEach(azureVoices) { voice in
+                                azureVoiceRow(voice)
                             }
                         }
 
-                        Button("Remove Premium Key", role: .destructive) {
-                            try? KeychainStore.delete(account: .elevenLabs)
-                            hasElevenKey = false
-                            elevenKey = ""
-                            japaneseVoices = []
+                        Button("Remove Azure Key", role: .destructive) {
+                            try? KeychainStore.delete(account: .azure)
+                            hasAzureKey = false
+                            azureKey = ""
+                            azureVoices = []
                         }
                     }
 
-                    if let elevenError {
-                        Text(elevenError).foregroundStyle(.red).font(.caption)
+                    if let azureError {
+                        Text(azureError).foregroundStyle(.red).font(.caption)
                     }
                 } header: {
-                    Text("Premium Voice (ElevenLabs)")
+                    Text("Premium Voice (Azure)")
                 } footer: {
-                    Text("A much more natural neural voice via ElevenLabs. These are native Japanese voices from ElevenLabs' Voice Library. Tap the speaker to hear a free sample; tap a voice to select it (this adds it to your ElevenLabs account). Requires your own API key and an internet connection, and synthesis costs a small amount per play. When premium is off, you're offline, or anything fails, the on-device voice above is used automatically.")
+                    Text("Microsoft Azure neural voices. The voice is locked to Japanese and the engine uses a real Japanese dictionary, so readings, the small っ, and numbers are handled reliably. Some voices also offer speaking styles (cheerful, newscast…). The free tier covers 500,000 characters/month — far more than personal study uses. Needs your Azure key and region; used only when the engine above is set to Azure.")
                 }
 
                 if let errorMessage {
@@ -132,7 +158,7 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .task(id: hasElevenKey) { loadVoices() }
+            .task(id: hasAzureKey) { loadAzureVoices() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if hasExistingKey {
@@ -169,105 +195,84 @@ struct SettingsView: View {
         }
     }
 
-    private func saveElevenKey() {
-        let trimmed = elevenKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    // MARK: - Azure
+
+    /// The display name for the currently-selected Azure voice, looked up from the loaded list;
+    /// falls back to the stored ShortName if the list hasn't loaded yet.
+    private var azureVoiceDisplayName: String {
+        azureVoices.first(where: { $0.shortName == azureVoiceName })?.displayName ?? azureVoiceName
+    }
+
+    /// Speaking styles supported by the currently-selected voice (empty if none / not loaded).
+    private var selectedVoiceStyles: [String] {
+        azureVoices.first(where: { $0.shortName == azureVoiceName })?.styleList ?? []
+    }
+
+    /// Turns an Azure style id (e.g. `newscast-casual`) into a display label (`Newscast casual`).
+    private func styleLabel(_ style: String) -> String {
+        style.replacingOccurrences(of: "-", with: " ").capitalized
+    }
+
+    private func saveAzureKey() {
+        let trimmed = azureKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         do {
-            try KeychainStore.save(trimmed, account: .elevenLabs)
-            elevenError = nil
-            hasElevenKey = true
-            elevenKey = ""
-            loadVoices()
+            try KeychainStore.save(trimmed, account: .azure)
+            azureError = nil
+            hasAzureKey = true
+            azureKey = ""
+            loadAzureVoices()
         } catch {
-            elevenError = "Couldn't save to Keychain: \(error.localizedDescription)"
+            azureError = "Couldn't save to Keychain: \(error.localizedDescription)"
         }
     }
 
     @ViewBuilder
-    private func voiceRow(_ voice: ElevenLabsService.SharedVoice) -> some View {
-        HStack(spacing: 12) {
-            Button {
-                if let preview = voice.previewURL { speechService.playPreview(preview) }
-            } label: {
-                Image(systemName: "speaker.wave.2.fill")
-            }
-            .buttonStyle(.borderless)
-            .disabled(voice.previewURL == nil)
-            .accessibilityLabel("Play sample of \(voice.name)")
-
-            Button {
-                selectVoice(voice)
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(voice.name).foregroundStyle(.primary)
-                        if !voice.subtitle.isEmpty {
-                            Text(voice.subtitle).font(.caption).foregroundStyle(.secondary)
-                        }
+    private func azureVoiceRow(_ voice: AzureSpeechService.Voice) -> some View {
+        Button {
+            azureVoiceName = voice.shortName
+            // Drop a style the new voice doesn't offer so we never send an invalid express-as.
+            if !(voice.styleList ?? []).contains(azureVoiceStyle) { azureVoiceStyle = "" }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(voice.displayName).foregroundStyle(.primary)
+                    if !voice.subtitle.isEmpty {
+                        Text(voice.subtitle).font(.caption).foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    if selectingVoiceID == voice.voiceID {
-                        ProgressView().controlSize(.small)
-                    } else if elevenVoiceName == voice.name {
-                        Image(systemName: "checkmark").foregroundStyle(.tint)
+                    if let styles = voice.styleList, !styles.isEmpty {
+                        Text("Styles: " + styles.map(styleLabel).joined(separator: " · "))
+                            .font(.caption2)
+                            .foregroundStyle(.tint)
                     }
                 }
-                .contentShape(Rectangle())
+                Spacer()
+                if azureVoiceName == voice.shortName {
+                    Image(systemName: "checkmark").foregroundStyle(.tint)
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(selectingVoiceID != nil)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 
-    private func loadVoices() {
-        guard let key = KeychainStore.read(account: .elevenLabs), !key.isEmpty else { return }
-        voicesLoading = true
-        elevenError = nil
+    private func loadAzureVoices() {
+        guard let key = KeychainStore.read(account: .azure), !key.isEmpty else { return }
+        let region = azureRegion.trimmingCharacters(in: .whitespaces)
+        guard !region.isEmpty else { return }
+        azureVoicesLoading = true
+        azureError = nil
         Task {
             do {
-                let voices = try await ElevenLabsService.fetchJapaneseVoices(apiKey: key)
+                let voices = try await AzureSpeechService.fetchJapaneseVoices(apiKey: key, region: region)
                 await MainActor.run {
-                    japaneseVoices = voices
-                    voicesLoading = false
+                    azureVoices = voices
+                    azureVoicesLoading = false
                 }
             } catch {
                 await MainActor.run {
-                    elevenError = "Couldn't load voices: \(error.localizedDescription)"
-                    voicesLoading = false
-                }
-            }
-        }
-    }
-
-    /// Adds the chosen library voice to the account (reusing it if already added) and stores
-    /// the resulting owned voice ID for synthesis.
-    private func selectVoice(_ voice: ElevenLabsService.SharedVoice) {
-        guard let key = KeychainStore.read(account: .elevenLabs), !key.isEmpty else { return }
-        selectingVoiceID = voice.voiceID
-        elevenError = nil
-        Task {
-            do {
-                let owned = (try? await ElevenLabsService.fetchVoices(apiKey: key)) ?? []
-                let ownedID: String
-                if let existing = owned.first(where: { $0.name == voice.name }) {
-                    ownedID = existing.voiceID
-                } else {
-                    ownedID = try await ElevenLabsService.addSharedVoice(
-                        publicOwnerID: voice.publicOwnerID,
-                        voiceID: voice.voiceID,
-                        name: voice.name,
-                        apiKey: key
-                    )
-                }
-                await MainActor.run {
-                    elevenVoiceID = ownedID
-                    elevenVoiceName = voice.name
-                    selectingVoiceID = nil
-                }
-            } catch {
-                await MainActor.run {
-                    elevenError = "Couldn't select voice: \(error.localizedDescription)"
-                    selectingVoiceID = nil
+                    azureError = "Couldn't load voices: \(error.localizedDescription)"
+                    azureVoicesLoading = false
                 }
             }
         }

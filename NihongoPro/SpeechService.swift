@@ -31,6 +31,21 @@ enum SpeechRate: String, CaseIterable, Identifiable {
     }
 }
 
+/// Which engine synthesizes speech. Persisted as a raw string under `voiceEngine`.
+enum VoiceEngine: String, CaseIterable, Identifiable {
+    case apple
+    case azure
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .apple: return "On-device"
+        case .azure: return "Azure"
+        }
+    }
+}
+
 final class SpeechService: NSObject, ObservableObject {
     @Published private(set) var isSpeaking: Bool = false
 
@@ -38,25 +53,27 @@ final class SpeechService: NSObject, ObservableObject {
     private var audioPlayer: AVAudioPlayer?
     private var fetchTask: Task<Void, Never>?
 
-    /// UserDefaults flag set by the Settings "Use premium voice" toggle.
-    static var premiumEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "usePremiumVoice")
+    /// The engine selected in Settings; defaults to the on-device Apple voice.
+    static var voiceEngine: VoiceEngine {
+        let raw = UserDefaults.standard.string(forKey: "voiceEngine") ?? ""
+        return VoiceEngine(rawValue: raw) ?? .apple
     }
 
-    /// True when premium synthesis will *actually* run — the toggle is on AND an ElevenLabs
-    /// key is present. Callers use this to decide whether to katakana-prepare TTS text
-    /// (`sentenceSpeechText(katakana:)` / `spokenText(katakana:)`); when premium can't run we
-    /// fall back to the Apple voice, which reads hiragana fine.
-    static var premiumActive: Bool {
-        guard premiumEnabled else { return false }
-        let key = KeychainStore.read(account: .elevenLabs)
-        return key?.isEmpty == false
+    /// Azure region (e.g. `westus2`), stored as a plain (non-secret) UserDefaults value.
+    static var azureRegion: String {
+        UserDefaults.standard.string(forKey: "azureRegion") ?? ""
     }
 
-    /// Voice chosen in Settings, or the ElevenLabs fallback voice when unset.
-    static var selectedElevenVoiceID: String {
-        let id = UserDefaults.standard.string(forKey: "elevenVoiceID") ?? ""
-        return id.isEmpty ? ElevenLabsService.defaultVoiceID : id
+    /// Azure ja-JP voice ShortName chosen in Settings, or the Azure fallback voice when unset.
+    static var selectedAzureVoice: String {
+        let name = UserDefaults.standard.string(forKey: "azureVoiceName") ?? ""
+        return name.isEmpty ? AzureSpeechService.defaultVoice : name
+    }
+
+    /// Azure speaking style (e.g. `cheerful`) for the selected voice, or "" for the voice's
+    /// default delivery. Only some ja-JP voices support styles (see `AzureSpeechService.Voice.styleList`).
+    static var selectedAzureStyle: String {
+        UserDefaults.standard.string(forKey: "azureVoiceStyle") ?? ""
     }
 
     override init() {
@@ -69,37 +86,17 @@ final class SpeechService: NSObject, ObservableObject {
         guard !trimmed.isEmpty else { return }
         stop()
 
-        if Self.premiumEnabled,
-           let apiKey = KeychainStore.read(account: .elevenLabs),
-           !apiKey.isEmpty {
-            speakWithElevenLabs(trimmed, apiKey: apiKey)
-        } else {
+        switch Self.voiceEngine {
+        case .azure:
+            let region = Self.azureRegion
+            if let apiKey = KeychainStore.read(account: .azure), !apiKey.isEmpty, !region.isEmpty {
+                speakWithAzure(trimmed, apiKey: apiKey, region: region)
+            } else {
+                speakWithApple(trimmed)
+            }
+        case .apple:
             speakWithApple(trimmed)
         }
-    }
-
-    /// Plays a remote MP3 sample (e.g. an ElevenLabs Voice Library `preview_url`). Does not
-    /// touch the synthesis API, so auditioning library voices is free.
-    func playPreview(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        stop()
-        isSpeaking = true
-        fetchTask = Task { [weak self] in
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                try Task.checkCancellation()
-                await self?.startPlayback(data)
-            } catch is CancellationError {
-                // stopped by user
-            } catch {
-                await self?.setSpeaking(false)
-            }
-        }
-    }
-
-    @MainActor
-    private func setSpeaking(_ value: Bool) {
-        isSpeaking = value
     }
 
     func stop() {
@@ -122,24 +119,21 @@ final class SpeechService: NSObject, ObservableObject {
         synthesizer.speak(utterance)
     }
 
-    // MARK: - ElevenLabs (premium) voice
+    // MARK: - Azure (premium) voice
 
-    private func speakWithElevenLabs(_ text: String, apiKey: String) {
-        let voiceID = Self.selectedElevenVoiceID
-        // Pure-kana input (single words, katakana-prepared readings) doesn't need the Japanese
-        // text normalizer — and the normalizer can itself re-mangle the sokuon. Keep it on only
-        // when there's kanji to resolve.
-        let normalize = text.contains { $0.isKanji }
+    private func speakWithAzure(_ text: String, apiKey: String, region: String) {
+        let voice = Self.selectedAzureVoice
+        let style = Self.selectedAzureStyle
         isSpeaking = true // optimistic: shows the stop control while audio is fetched
         fetchTask = Task { [weak self] in
             do {
-                let data = try await Self.audioData(text: text, voiceID: voiceID, apiKey: apiKey, normalize: normalize)
+                let data = try await Self.azureAudioData(text: text, voice: voice, style: style, apiKey: apiKey, region: region)
                 try Task.checkCancellation()
                 await self?.startPlayback(data)
             } catch is CancellationError {
                 // User pressed stop; state already reset there.
             } catch {
-                // Any failure (offline, bad key, quota) → fall back to the on-device voice.
+                // Any failure (offline, bad key/region, quota) → fall back to the on-device voice.
                 await self?.fallBackToApple(text)
             }
         }
@@ -170,22 +164,30 @@ final class SpeechService: NSObject, ObservableObject {
 
     // MARK: - Premium audio cache (cachesDirectory)
 
-    /// Returns cached MP3 for (model, voice, normalize, text) or fetches + caches it.
-    private static func audioData(text: String, voiceID: String, apiKey: String, normalize: Bool) async throws -> Data {
-        if let cached = try? Data(contentsOf: cacheURL(text: text, voiceID: voiceID, normalize: normalize)) {
+    /// Returns cached Azure MP3 for (region, voice, style, text) or fetches + caches it.
+    private static func azureAudioData(text: String, voice: String, style: String, apiKey: String, region: String) async throws -> Data {
+        let key = "azure|\(region)|\(voice)|\(style)|\(text)"
+        return try await cachedAudio(key: key, subdir: "AzureAudio") {
+            try await AzureSpeechService.synthesize(text, voiceName: voice, style: style, apiKey: apiKey, region: region)
+        }
+    }
+
+    /// Generic disk cache: returns the MP3 at `key`/`subdir` or runs `fetch`, caching the result.
+    private static func cachedAudio(key: String, subdir: String, fetch: () async throws -> Data) async throws -> Data {
+        let url = cacheURL(key: key, subdir: subdir)
+        if let cached = try? Data(contentsOf: url) {
             return cached
         }
-        let data = try await ElevenLabsService.synthesize(text, voiceID: voiceID, apiKey: apiKey, normalize: normalize)
-        try? data.write(to: cacheURL(text: text, voiceID: voiceID, normalize: normalize), options: .atomic)
+        let data = try await fetch()
+        try? data.write(to: url, options: .atomic)
         return data
     }
 
-    private static func cacheURL(text: String, voiceID: String, normalize: Bool) -> URL {
-        let key = "\(ElevenLabsService.modelID)|\(voiceID)|norm\(normalize)|\(text)"
+    private static func cacheURL(key: String, subdir: String) -> URL {
         let digest = SHA256.hash(data: Data(key.utf8))
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("ElevenLabsAudio", isDirectory: true)
+            .appendingPathComponent(subdir, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent(hex + ".mp3")
     }

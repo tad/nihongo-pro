@@ -31,7 +31,7 @@
 		FA00000000000000000000CC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CB /* LibraryView.swift */; };
 		FA00000000000000000000D3 /* ActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CF /* ActivityTracker.swift */; };
 		FA00000000000000000000D5 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D4 /* ExportService.swift */; };
-		FA00000000000000000000D7 /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D6 /* ElevenLabsService.swift */; };
+		FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D8 /* AzureSpeechService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,7 +60,7 @@
 		FA00000000000000000000CB /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000CF /* ActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D4 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
-		FA00000000000000000000D6 /* ElevenLabsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsService.swift; sourceTree = "<group>"; };
+		FA00000000000000000000D8 /* AzureSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureSpeechService.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -109,7 +109,7 @@
 				FA00000000000000000000CB /* LibraryView.swift */,
 				FA00000000000000000000CF /* ActivityTracker.swift */,
 				FA00000000000000000000D4 /* ExportService.swift */,
-				FA00000000000000000000D6 /* ElevenLabsService.swift */,
+				FA00000000000000000000D8 /* AzureSpeechService.swift */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -217,7 +217,7 @@
 				FA00000000000000000000CC /* LibraryView.swift in Sources */,
 				FA00000000000000000000D3 /* ActivityTracker.swift in Sources */,
 				FA00000000000000000000D5 /* ExportService.swift in Sources */,
-				FA00000000000000000000D7 /* ElevenLabsService.swift in Sources */,
+				FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
