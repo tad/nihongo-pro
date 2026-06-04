@@ -87,8 +87,10 @@ enum ElevenLabsService {
         }
     }
 
-    /// Returns MP3 audio bytes for `text` spoken by `voiceID`.
-    static func synthesize(_ text: String, voiceID: String, apiKey: String) async throws -> Data {
+    /// Returns MP3 audio bytes for `text` spoken by `voiceID`. `normalize` toggles the Japanese
+    /// text normalizer — keep it on for kanji (resolves readings in context), but turn it off
+    /// for pure-kana input where it has nothing to resolve and can re-mangle the sokuon.
+    static func synthesize(_ text: String, voiceID: String, apiKey: String, normalize: Bool = true) async throws -> Data {
         var request = URLRequest(url: base.appendingPathComponent("text-to-speech/\(voiceID)"))
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
@@ -101,9 +103,10 @@ enum ElevenLabsService {
             "language_code": languageCode,
             // Runs ElevenLabs' Japanese text normalizer over natural (kanji) text — resolves
             // kanji readings in context so we can feed real orthography (natural prosody)
-            // instead of pre-flattening to kana (which reads flat/robotic). Adds latency,
-            // but results are cached so it's a one-time cost per sentence.
-            "apply_language_text_normalization": true,
+            // instead of pre-flattening to kana (which reads flat/robotic). Disabled for
+            // pure-kana input, where it has nothing to resolve and can re-mangle the sokuon.
+            // Adds latency, but results are cached so it's a one-time cost per sentence.
+            "apply_language_text_normalization": normalize,
             "voice_settings": [
                 "stability": 0.5,
                 "similarity_boost": 0.75

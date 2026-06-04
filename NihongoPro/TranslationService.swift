@@ -36,9 +36,25 @@ struct Word: Codable {
     /// button). A lone uncommon kanji compound (e.g. 精米歩合) has no surrounding context for
     /// a TTS normalizer to lean on, so the guaranteed-correct pass-1 `reading` is used; falls
     /// back to the surface form for pure-kana/punctuation words.
-    var spokenText: String {
+    ///
+    /// Pass `katakana: true` on the premium (ElevenLabs) path: its Japanese voices render the
+    /// geminate pause (sokuon ッ) and other moras more reliably from katakana than from
+    /// hiragana, which mixes up the small っ / large つ. The Apple path keeps hiragana.
+    func spokenText(katakana: Bool = false) -> String {
         let kana = reading.trimmingCharacters(in: .whitespacesAndNewlines)
-        return kana.isEmpty ? text : kana
+        let base = kana.isEmpty ? text : kana
+        return katakana ? Word.toKatakana(base) : base
+    }
+
+    /// Converts every hiragana character to the equivalent katakana, leaving kanji,
+    /// punctuation, and existing katakana untouched. The U+3041–U+3096 hiragana block maps to
+    /// katakana by a fixed +0x60 offset (っ U+3063 → ッ U+30C3). See `spokenText(katakana:)`.
+    static func toKatakana(_ s: String) -> String {
+        String(String.UnicodeScalarView(s.unicodeScalars.map { scalar in
+            (0x3041...0x3096).contains(scalar.value)
+                ? (Unicode.Scalar(scalar.value + 0x60) ?? scalar)
+                : scalar
+        }))
     }
 }
 
@@ -46,8 +62,17 @@ extension Array where Element == Word {
     /// The sentence prepared for TTS: natural kanji surface forms throughout, except words
     /// pass 1 flagged (`ttsKana == true`) as having tricky readings, which are swapped to their
     /// kana so they're pronounced correctly without flattening the whole sentence to kana.
-    var sentenceSpeechText: String {
-        map { $0.ttsKana == true ? $0.spokenText : $0.text }.joined()
+    ///
+    /// `katakana: true` (premium path) renders only the *substituted* kana words as katakana —
+    /// the natural kanji words are left untouched so sentence prosody is preserved.
+    ///
+    /// Arabic digits are deliberately left as-is (not converted to kana). Substituting a kana
+    /// number-reading into the kanji text fixes the reading but makes ElevenLabs phrase the kana
+    /// as its own chunk, audibly breaking sentence prosody (pauses in the wrong places). Feeding
+    /// raw digits keeps the natural phrasing at the cost of the normalizer occasionally mis-reading
+    /// a number — a tradeoff chosen in favor of naturalness (see the speech-input note in CLAUDE.md).
+    func sentenceSpeechText(katakana: Bool = false) -> String {
+        map { $0.ttsKana == true ? $0.spokenText(katakana: katakana) : $0.text }.joined()
     }
 }
 

@@ -41,7 +41,12 @@ struct WordDefinitionView: View {
                                     if speechService.isSpeaking {
                                         speechService.stop()
                                     } else {
-                                        speechService.speak(word.spokenText)
+                                        // Same selection rule as the sentence: speak the kanji
+                                        // surface form (which ElevenLabs reads correctly), and
+                                        // only drop to the kana reading for tts_kana-flagged rare
+                                        // compounds. Feeding bare kana made the engine truncate a
+                                        // terminal っ/つ (温帯低気圧 → "…あ").
+                                        speechService.speak([word].sentenceSpeechText(katakana: SpeechService.premiumActive))
                                     }
                                 } label: {
                                     Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")

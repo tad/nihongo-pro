@@ -43,6 +43,16 @@ final class SpeechService: NSObject, ObservableObject {
         UserDefaults.standard.bool(forKey: "usePremiumVoice")
     }
 
+    /// True when premium synthesis will *actually* run — the toggle is on AND an ElevenLabs
+    /// key is present. Callers use this to decide whether to katakana-prepare TTS text
+    /// (`sentenceSpeechText(katakana:)` / `spokenText(katakana:)`); when premium can't run we
+    /// fall back to the Apple voice, which reads hiragana fine.
+    static var premiumActive: Bool {
+        guard premiumEnabled else { return false }
+        let key = KeychainStore.read(account: .elevenLabs)
+        return key?.isEmpty == false
+    }
+
     /// Voice chosen in Settings, or the ElevenLabs fallback voice when unset.
     static var selectedElevenVoiceID: String {
         let id = UserDefaults.standard.string(forKey: "elevenVoiceID") ?? ""
@@ -116,10 +126,14 @@ final class SpeechService: NSObject, ObservableObject {
 
     private func speakWithElevenLabs(_ text: String, apiKey: String) {
         let voiceID = Self.selectedElevenVoiceID
+        // Pure-kana input (single words, katakana-prepared readings) doesn't need the Japanese
+        // text normalizer — and the normalizer can itself re-mangle the sokuon. Keep it on only
+        // when there's kanji to resolve.
+        let normalize = text.contains { $0.isKanji }
         isSpeaking = true // optimistic: shows the stop control while audio is fetched
         fetchTask = Task { [weak self] in
             do {
-                let data = try await Self.audioData(text: text, voiceID: voiceID, apiKey: apiKey)
+                let data = try await Self.audioData(text: text, voiceID: voiceID, apiKey: apiKey, normalize: normalize)
                 try Task.checkCancellation()
                 await self?.startPlayback(data)
             } catch is CancellationError {
@@ -156,18 +170,18 @@ final class SpeechService: NSObject, ObservableObject {
 
     // MARK: - Premium audio cache (cachesDirectory)
 
-    /// Returns cached MP3 for (model, voice, text) or fetches + caches it.
-    private static func audioData(text: String, voiceID: String, apiKey: String) async throws -> Data {
-        if let cached = try? Data(contentsOf: cacheURL(text: text, voiceID: voiceID)) {
+    /// Returns cached MP3 for (model, voice, normalize, text) or fetches + caches it.
+    private static func audioData(text: String, voiceID: String, apiKey: String, normalize: Bool) async throws -> Data {
+        if let cached = try? Data(contentsOf: cacheURL(text: text, voiceID: voiceID, normalize: normalize)) {
             return cached
         }
-        let data = try await ElevenLabsService.synthesize(text, voiceID: voiceID, apiKey: apiKey)
-        try? data.write(to: cacheURL(text: text, voiceID: voiceID), options: .atomic)
+        let data = try await ElevenLabsService.synthesize(text, voiceID: voiceID, apiKey: apiKey, normalize: normalize)
+        try? data.write(to: cacheURL(text: text, voiceID: voiceID, normalize: normalize), options: .atomic)
         return data
     }
 
-    private static func cacheURL(text: String, voiceID: String) -> URL {
-        let key = "\(ElevenLabsService.modelID)|\(voiceID)|\(text)"
+    private static func cacheURL(text: String, voiceID: String, normalize: Bool) -> URL {
+        let key = "\(ElevenLabsService.modelID)|\(voiceID)|norm\(normalize)|\(text)"
         let digest = SHA256.hash(data: Data(key.utf8))
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]

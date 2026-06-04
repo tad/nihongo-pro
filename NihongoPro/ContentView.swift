@@ -234,7 +234,7 @@ struct ContentView: View {
                         if speechService.isSpeaking {
                             speechService.stop()
                         } else {
-                            speechService.speak(words.sentenceSpeechText)
+                            speechService.speak(words.sentenceSpeechText(katakana: SpeechService.premiumActive))
                         }
                     } label: {
                         Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
@@ -599,7 +599,7 @@ struct ContentView: View {
             ActivityTracker.shared.recordParse()
             // Mostly natural kanji (natural prosody), with only pass-1-flagged tricky-reading
             // words swapped to kana so rare compounds (精米歩合) are pronounced correctly.
-            speechService.speak(result.words.sentenceSpeechText)
+            speechService.speak(result.words.sentenceSpeechText(katakana: SpeechService.premiumActive))
         } catch let error as TranslationError {
             guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
                 isTranslating = false
