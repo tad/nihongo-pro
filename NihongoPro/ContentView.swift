@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var inputText: String = ""
     @State private var words: [Word] = []
     @State private var englishTranslation: String = ""
+    @State private var literalTranslation: String = ""
     @State private var isTranslating: Bool = false
     @State private var errorMessage: String?
     @State private var showingSettings: Bool = false
@@ -268,12 +269,7 @@ struct ContentView: View {
                 if showingBreakdown {
                     breakdownContent
                 } else {
-                    Text(englishTranslation)
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    translationBlock
                 }
             }
         }
@@ -306,16 +302,40 @@ struct ContentView: View {
             }
         } else if let breakdown {
             VStack(alignment: .leading, spacing: 20) {
-                Text(englishTranslation)
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                translationBlock
 
                 BreakdownView(markdown: breakdown)
                     .textSelection(.enabled)
             }
+        }
+    }
+
+    /// The literal (grammar-following) translation captioned "Literal" above the natural
+    /// translation captioned "Natural". The literal block is omitted when empty (e.g. the
+    /// model didn't return one, or a sentence saved before this feature was reloaded).
+    @ViewBuilder
+    private var translationBlock: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if !literalTranslation.isEmpty {
+                labeledTranslation("Literal", literalTranslation)
+            }
+            labeledTranslation("Natural", englishTranslation)
+        }
+    }
+
+    @ViewBuilder
+    private func labeledTranslation(_ label: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.semibold))
+                .tracking(0.6)
+                .foregroundStyle(.tertiary)
+            Text(text)
+                .font(.title2)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -495,7 +515,8 @@ struct ContentView: View {
         SavedSentenceStore.shared.toggle(
             text: parsedInputText,
             words: words,
-            englishTranslation: englishTranslation
+            englishTranslation: englishTranslation,
+            literalTranslation: literalTranslation.isEmpty ? nil : literalTranslation
         )
     }
 
@@ -510,6 +531,7 @@ struct ContentView: View {
         }
         words = sentence.words
         englishTranslation = sentence.englishTranslation
+        literalTranslation = sentence.literalTranslation ?? ""
         parsedInputText = sentence.text
         inputText = sentence.text
         isTranslationRevealed = false
@@ -532,6 +554,7 @@ struct ContentView: View {
         inputText = ""
         words = []
         englishTranslation = ""
+        literalTranslation = ""
         errorMessage = nil
         definitionsError = nil
         breakdown = nil
@@ -551,6 +574,7 @@ struct ContentView: View {
         if trimmed != parsedInputText {
             words = []
             englishTranslation = ""
+            literalTranslation = ""
             breakdown = nil
             breakdownError = nil
             definitionsError = nil
@@ -585,6 +609,7 @@ struct ContentView: View {
         showingBreakdown = false
         words = []
         englishTranslation = ""
+        literalTranslation = ""
 
         do {
             let result = try await translator.translate(trimmed)
@@ -594,6 +619,7 @@ struct ContentView: View {
             }
             words = result.words
             englishTranslation = result.englishTranslation
+            literalTranslation = result.literalTranslation
             parsedInputText = trimmed
             await FrequencyTracker.shared.recordSentence(words: result.words)
             ActivityTracker.shared.recordParse()

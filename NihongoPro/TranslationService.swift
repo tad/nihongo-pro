@@ -87,6 +87,9 @@ struct KanjiInfo: Codable {
 struct TranslationResult {
     let words: [Word]
     let englishTranslation: String
+    /// A more literal, grammar-following rendering shown above the natural translation.
+    /// May be empty if the model omitted it (defensive — the UI just hides the literal block).
+    let literalTranslation: String
 }
 
 enum TranslationError: LocalizedError {
@@ -120,7 +123,7 @@ struct TranslationService {
     private static let translationSystemPrompt = """
     You are a Japanese language assistant. For each Japanese sentence the user sends, respond with exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
 
-    The JSON has two fields:
+    The JSON has three fields:
 
     "words": an array of word objects covering the entire input in order. Concatenating each word's "text" must reproduce the input exactly (including punctuation and whitespace). Each word object has:
       - "text": the surface form of the word as written (e.g., "今日", "良い", "は", "。")
@@ -138,10 +141,17 @@ struct TranslationService {
 
     "translation": a natural, fluent English translation of the full sentence.
 
+    "literal_translation": a more literal, grammar-following English rendering of the sentence. It must:
+      - Preserve the Japanese word/phrase order (topic and other elements first, verb or copula LAST, just as in the Japanese).
+      - Convey the function of particles through natural English phrasing rather than bracketed labels: は as "as for X" or "X (topic)" only when it reads naturally, を by placing the object in its Japanese position, に as "to"/"at"/"for", と as "with"/"and", へ as "toward", から as "from", まで as "until/to", の as "'s"/"of", で as "by"/"with"/"at", も as "also/even".
+      - Supply subjects or objects that Japanese omits in parentheses, e.g. "(I)", "(it)".
+      - Stay readable as English — do NOT use brackets, slashes, glosses, interlinear notation, or romaji. It is a readable sentence that simply follows the Japanese structure, not a word-by-word code.
+      - Keep tense/politeness from the verb but you need not reproduce honorific nuance.
+
     JSON escaping: every string value must be valid JSON. If the input contains an ASCII double-quote character ("), it must appear as \\" inside the relevant "text", "reading", and "furigana" string values. Backslashes must appear as \\\\. Typographic/curly quotes (" " ' ') and the fullwidth quotation marks (「」『』) do NOT need escaping. Treat unusual symbols (®, ™, ・, etc.) as their own word entries with reading equal to text.
 
     Example for input "今日は良い天気ですね。":
-    {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}],"tts_kana":false},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}],"tts_kana":false},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}],"tts_kana":false},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}],"tts_kana":false},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}],"tts_kana":false},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}],"tts_kana":false},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}],"tts_kana":false}],"translation":"It's nice weather today, isn't it?"}
+    {"words":[{"text":"今日","reading":"きょう","furigana":[{"text":"今日","reading":"きょう"}],"tts_kana":false},{"text":"は","reading":"は","furigana":[{"text":"は","reading":null}],"tts_kana":false},{"text":"良い","reading":"よい","furigana":[{"text":"良","reading":"よ"},{"text":"い","reading":null}],"tts_kana":false},{"text":"天気","reading":"てんき","furigana":[{"text":"天気","reading":"てんき"}],"tts_kana":false},{"text":"です","reading":"です","furigana":[{"text":"です","reading":null}],"tts_kana":false},{"text":"ね","reading":"ね","furigana":[{"text":"ね","reading":null}],"tts_kana":false},{"text":"。","reading":"。","furigana":[{"text":"。","reading":null}],"tts_kana":false}],"translation":"It's nice weather today, isn't it?","literal_translation":"As for today, (it) is good weather, isn't it?"}
 
     Example of a word that needs the flag (rare/technical reading): for the word 精米歩合 the object would be {"text":"精米歩合","reading":"せいまいぶあい","furigana":[{"text":"精米歩合","reading":"せいまいぶあい"}],"tts_kana":true}.
     """
@@ -241,7 +251,12 @@ struct TranslationService {
         do {
             let response = try JSONDecoder().decode(TranslationResponse.self, from: jsonData)
             let trimmedTranslation = response.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-            return TranslationResult(words: response.words, englishTranslation: trimmedTranslation)
+            let trimmedLiteral = (response.literalTranslation ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return TranslationResult(
+                words: response.words,
+                englishTranslation: trimmedTranslation,
+                literalTranslation: trimmedLiteral
+            )
         } catch {
             let detail = Self.decoderErrorDetail(error)
             throw TranslationError.invalidResponseFormat("\(detail) — got: \(Self.previewSnippet(rawText))")
@@ -513,6 +528,13 @@ private struct MessagesResponse: Decodable {
 private struct TranslationResponse: Decodable {
     let words: [Word]
     let translation: String
+    let literalTranslation: String?
+
+    enum CodingKeys: String, CodingKey {
+        case words
+        case translation
+        case literalTranslation = "literal_translation"
+    }
 }
 
 private struct DefinitionsInput: Encodable {

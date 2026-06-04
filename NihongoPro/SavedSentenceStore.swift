@@ -9,13 +9,17 @@ struct SavedSentence: Codable, Identifiable {
     let text: String
     let words: [Word]
     let englishTranslation: String
+    /// Grammar-following literal rendering. Optional so sentences saved before this
+    /// feature decode cleanly (older records simply have no literal translation).
+    let literalTranslation: String?
     let savedAt: Date
 
-    init(id: UUID = UUID(), text: String, words: [Word], englishTranslation: String, savedAt: Date) {
+    init(id: UUID = UUID(), text: String, words: [Word], englishTranslation: String, literalTranslation: String? = nil, savedAt: Date) {
         self.id = id
         self.text = text
         self.words = words
         self.englishTranslation = englishTranslation
+        self.literalTranslation = literalTranslation
         self.savedAt = savedAt
     }
 }
@@ -51,7 +55,7 @@ final class SavedSentenceStore {
         return sentences.contains { $0.text == trimmed }
     }
 
-    func save(text: String, words: [Word], englishTranslation: String) {
+    func save(text: String, words: [Word], englishTranslation: String, literalTranslation: String? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !words.isEmpty else { return }
         sentences.removeAll { $0.text == trimmed }
@@ -59,6 +63,7 @@ final class SavedSentenceStore {
             text: trimmed,
             words: words,
             englishTranslation: englishTranslation,
+            literalTranslation: literalTranslation,
             savedAt: Date()
         )
         sentences.insert(entry, at: 0)
@@ -78,12 +83,12 @@ final class SavedSentenceStore {
 
     /// Toggles save state for the given parse. Returns the new state (true = now saved).
     @discardableResult
-    func toggle(text: String, words: [Word], englishTranslation: String) -> Bool {
+    func toggle(text: String, words: [Word], englishTranslation: String, literalTranslation: String? = nil) -> Bool {
         if isSaved(text) {
             remove(text)
             return false
         } else {
-            save(text: text, words: words, englishTranslation: englishTranslation)
+            save(text: text, words: words, englishTranslation: englishTranslation, literalTranslation: literalTranslation)
             return true
         }
     }
