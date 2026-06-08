@@ -138,12 +138,14 @@ struct TranslationService {
     """
 
     private static let definitionsSystemPrompt = """
-    You are a Japanese language assistant. The user will send a JSON object containing a Japanese sentence and an ordered list of its words. Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
+    You are a Japanese language assistant. The user will send a JSON object containing a Japanese sentence and an ordered list of its words. Each word is an object {"text", "reading"} where "reading" is the authoritative hiragana reading of that word in this sentence. Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
 
     Response shape:
     {"definitions": [...], "context_dependent": [...]}
 
     "definitions" must be an array of strings (or null) with the **same length and order** as the input "words" array. For each word, provide a concise English definition in the context of the sentence (1-2 phrases, e.g., "today", "good, fine", "topic-marking particle"). Use null for pure punctuation marks and standalone whitespace.
+
+    Treat each word's provided "reading" as authoritative — it overrides any reading you might infer from the kanji. This matters most for proper nouns and names: when a definition includes a romanized form, romanize **from the provided reading**, never from a guessed kanji reading. For example, the word {"text":"安青錦","reading":"あおにしき"} is the sumo wrestler "Aonishiki" — romanize it as "Aonishiki", not "Yasuaonishiki".
 
     "context_dependent" must be a same-length, same-order array of booleans. For each word, set **true** if a competent speaker would translate it meaningfully differently in different common contexts (the word is polysemous and a cached definition would mislead in other sentences); set **false** if the word has one dominant meaning that fits most contexts. Use false for punctuation and grammatical particles.
 
@@ -152,7 +154,7 @@ struct TranslationService {
     - true (multiple senses depending on context): 走る ("to run [vehicle/person]" vs "to rush [errand]" vs "to extend [line]"), 開く ("to open" vs "to bloom"), 持つ ("to hold/carry" vs "to own/have" vs "to last"), 出る ("to leave" vs "to appear" vs "to attend"), 取る ("to take" vs "to choose" vs "to remove"), 立つ ("to stand" vs "to be erected" vs "to depart"), 上がる ("to go up" vs "to be finished" vs "to enter [a house]")
 
     Example input:
-    {"sentence":"今日は良い天気ですね。","words":["今日","は","良い","天気","です","ね","。"]}
+    {"sentence":"今日は良い天気ですね。","words":[{"text":"今日","reading":"きょう"},{"text":"は","reading":"は"},{"text":"良い","reading":"よい"},{"text":"天気","reading":"てんき"},{"text":"です","reading":"です"},{"text":"ね","reading":"ね"},{"text":"。","reading":"。"}]}
 
     Example response:
     {"definitions":["today","topic-marking particle","good, fine","weather","polite copula (\\"is/are\\")","sentence-final particle seeking agreement (\\"isn't it?\\")",null],"context_dependent":[false,false,false,false,false,false,false]}
@@ -287,15 +289,15 @@ struct TranslationService {
         return trimmed
     }
 
-    func fetchDefinitions(sentence: String, words: [String]) async throws -> [String?] {
+    func fetchDefinitions(sentence: String, words: [Word]) async throws -> [String?] {
         var result: [String?] = Array(repeating: nil, count: words.count)
         var uncachedIndices: [Int] = []
 
         for (i, word) in words.enumerated() {
-            if JapaneseWordFilter.isPurePunctuation(word) {
+            if JapaneseWordFilter.isPurePunctuation(word.text) {
                 continue
             }
-            if let cached = await DefinitionCache.shared.definition(for: word) {
+            if let cached = await DefinitionCache.shared.definition(for: word.text) {
                 result[i] = cached
             } else {
                 uncachedIndices.append(i)
@@ -306,7 +308,12 @@ struct TranslationService {
             return result
         }
 
-        let uncachedWords = uncachedIndices.map { words[$0] }
+        // Send each word with its pass-1 reading so the model romanizes/disambiguates
+        // from the authoritative reading rather than re-guessing the kanji (e.g. a
+        // name like 安青錦 → あおにしき instead of mis-reading 安 as "yasu").
+        let uncachedWords = uncachedIndices.map {
+            DefinitionsInputWord(text: words[$0].text, reading: words[$0].reading)
+        }
         let inputPayload = DefinitionsInput(sentence: sentence, words: uncachedWords)
         let inputData = try JSONEncoder().encode(inputPayload)
         guard let inputString = String(data: inputData, encoding: .utf8) else {
@@ -341,7 +348,7 @@ struct TranslationService {
             }
 
             if let def, !isContextDependent {
-                await DefinitionCache.shared.setDefinition(def, for: words[originalIndex])
+                await DefinitionCache.shared.setDefinition(def, for: words[originalIndex].text)
             }
         }
 
@@ -520,7 +527,12 @@ private struct TranslationResponse: Decodable {
 
 private struct DefinitionsInput: Encodable {
     let sentence: String
-    let words: [String]
+    let words: [DefinitionsInputWord]
+}
+
+private struct DefinitionsInputWord: Encodable {
+    let text: String
+    let reading: String
 }
 
 private struct DefinitionsResponse: Decodable {

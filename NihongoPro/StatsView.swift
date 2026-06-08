@@ -17,6 +17,13 @@ struct StatsView: View {
     private let familiarity = FamiliarityStore.shared
     private let activity = ActivityTracker.shared
 
+    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+
+    // 2-across on iPhone (a 4-column grid is far too cramped), 4-across on iPad.
+    private var summaryColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: isPhone ? 2 : 4)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -95,15 +102,7 @@ struct StatsView: View {
             Text("Activity")
                 .font(.title3.weight(.semibold))
 
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12),
-                ],
-                spacing: 12
-            ) {
+            LazyVGrid(columns: summaryColumns, spacing: 12) {
                 SummaryCard(label: "Day streak", value: activity.currentStreak, icon: "flame.fill", accent: .vermillion)
                 SummaryCard(label: "Sessions", value: activity.totalStudySessions, icon: "timer")
                 SummaryCard(label: "Days studied", value: activity.daysStudied, icon: "calendar")
@@ -147,15 +146,7 @@ struct StatsView: View {
     }
 
     private var summaryCards: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12),
-            ],
-            spacing: 12
-        ) {
+        LazyVGrid(columns: summaryColumns, spacing: 12) {
             SummaryCard(
                 label: "Unique words",
                 value: wordCounts.count,

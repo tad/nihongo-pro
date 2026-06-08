@@ -34,6 +34,8 @@ struct ContentView: View {
 
     private let translator = TranslationService()
 
+    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -44,9 +46,12 @@ struct ContentView: View {
                         translationDisplay
                     }
                     .frame(maxHeight: .infinity)
+                    // iPhone: dragging the sentence area also dismisses the keyboard.
+                    // iPad keeps the default (.automatic) so its behavior is unchanged.
+                    .scrollDismissesKeyboard(isPhone ? .interactively : .automatic)
                     inputArea
                 }
-                .padding(32)
+                .padding(isPhone ? 16 : 32)
 
                 if let session = studySession, session.isOnBreak {
                     breakOverlay(session: session)
@@ -92,27 +97,54 @@ struct ContentView: View {
                     .accessibilityLabel(showFurigana ? "Hide furigana" : "Show furigana")
                     .disabled(drillMode)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingLibrary = true
-                    } label: {
-                        Image(systemName: "books.vertical")
+                if isPhone {
+                    // On iPhone the top bar can't hold every button — collapse
+                    // navigation into a single "More" menu (toggles stay visible).
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button {
+                                showingLibrary = true
+                            } label: {
+                                Label("Saved sentences", systemImage: "books.vertical")
+                            }
+                            Button {
+                                showingStats = true
+                            } label: {
+                                Label("Progress", systemImage: "chart.bar.fill")
+                            }
+                            Button {
+                                showingSettings = true
+                            } label: {
+                                Label("Settings", systemImage: "gearshape")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .accessibilityLabel("More")
                     }
-                    .accessibilityLabel("Saved sentences")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingStats = true
-                    } label: {
-                        Image(systemName: "chart.bar.fill")
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingLibrary = true
+                        } label: {
+                            Image(systemName: "books.vertical")
+                        }
+                        .accessibilityLabel("Saved sentences")
                     }
-                    .accessibilityLabel("Progress")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingStats = true
+                        } label: {
+                            Image(systemName: "chart.bar.fill")
+                        }
+                        .accessibilityLabel("Progress")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
                     }
                 }
             }
@@ -392,6 +424,23 @@ struct ContentView: View {
                             .allowsHitTesting(false)
                     }
                 }
+                .toolbar {
+                    // iPhone: a Done button above the keyboard so it can be
+                    // dismissed once the user is finished typing/pasting (the
+                    // keyboard otherwise eats too much of the small screen). The
+                    // `.keyboard` placement only shows while editing. iPad is
+                    // unaffected — no keyboard toolbar is added there.
+                    if isPhone {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button {
+                                isInputFocused = false
+                            } label: {
+                                Label("Done", systemImage: "keyboard.chevron.compact.down")
+                            }
+                        }
+                    }
+                }
 
             if let errorMessage {
                 Button {
@@ -426,59 +475,99 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack(spacing: 12) {
-                Button(role: .destructive) {
-                    clear()
-                } label: {
-                    Text("Clear")
-                        .font(.headline)
-                        .frame(minWidth: 100)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .disabled(isTranslating || (inputText.isEmpty && words.isEmpty && englishTranslation.isEmpty && errorMessage == nil))
-
-                Spacer()
-
-                if !isTranslationRevealed && !words.isEmpty && !englishTranslation.isEmpty {
-                    Button {
-                        isTranslationRevealed = true
-                    } label: {
-                        Text("Show translation")
-                            .font(.headline)
-                            .frame(minWidth: 180)
+            if isPhone {
+                // On iPhone the action buttons don't fit on one row — stack them
+                // full-width, primary action on top, Clear at the bottom.
+                VStack(spacing: 12) {
+                    if !isTranslationRevealed && !words.isEmpty && !englishTranslation.isEmpty {
+                        showTranslationButton
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                }
-
-                if isTranslationRevealed && !showingBreakdown {
-                    Button {
-                        showBreakdown()
-                    } label: {
-                        Text("Breakdown")
-                            .font(.headline)
-                            .frame(minWidth: 130)
+                    if isTranslationRevealed && !showingBreakdown {
+                        breakdownButton
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .disabled(englishTranslation.isEmpty || isTranslating || isLoadingBreakdown)
-                }
-
-                if !words.isEmpty && studySession == nil {
-                    Button {
-                        startStudySession()
-                    } label: {
-                        Text("Start study")
-                            .font(.headline)
-                            .frame(minWidth: 130)
+                    if !words.isEmpty && studySession == nil {
+                        startStudyButton
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .disabled(isTranslating || isLoadingDefinitions || englishTranslation.isEmpty)
+                    clearButton
+                }
+            } else {
+                HStack(spacing: 12) {
+                    clearButton
+
+                    Spacer()
+
+                    if !isTranslationRevealed && !words.isEmpty && !englishTranslation.isEmpty {
+                        showTranslationButton
+                    }
+
+                    if isTranslationRevealed && !showingBreakdown {
+                        breakdownButton
+                    }
+
+                    if !words.isEmpty && studySession == nil {
+                        startStudyButton
+                    }
                 }
             }
         }
+    }
+
+    // Action-row buttons. Shared by the iPad HStack and the iPhone VStack so the
+    // labels / conditions / disabled-state never drift; only the container and the
+    // button width (fixed minWidth on iPad, full-width on iPhone) differ.
+    private func actionButtonWidth(_ minWidth: CGFloat) -> some ViewModifier {
+        ActionButtonWidth(isPhone: isPhone, minWidth: minWidth)
+    }
+
+    @ViewBuilder private var clearButton: some View {
+        Button(role: .destructive) {
+            clear()
+        } label: {
+            Text("Clear")
+                .font(.headline)
+                .modifier(actionButtonWidth(100))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(isTranslating || (inputText.isEmpty && words.isEmpty && englishTranslation.isEmpty && errorMessage == nil))
+    }
+
+    @ViewBuilder private var showTranslationButton: some View {
+        Button {
+            isTranslationRevealed = true
+        } label: {
+            Text("Show translation")
+                .font(.headline)
+                .modifier(actionButtonWidth(180))
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+    }
+
+    @ViewBuilder private var breakdownButton: some View {
+        Button {
+            showBreakdown()
+        } label: {
+            Text("Breakdown")
+                .font(.headline)
+                .modifier(actionButtonWidth(130))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(englishTranslation.isEmpty || isTranslating || isLoadingBreakdown)
+    }
+
+    @ViewBuilder private var startStudyButton: some View {
+        Button {
+            startStudySession()
+        } label: {
+            Text("Start study")
+                .font(.headline)
+                .modifier(actionButtonWidth(130))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(isTranslating || isLoadingDefinitions || englishTranslation.isEmpty)
     }
 
     private func isMultiSentence(_ text: String) -> Bool {
@@ -682,15 +771,15 @@ struct ContentView: View {
     }
 
     private func fetchDefinitions() async {
-        let wordTexts = words.map(\.text)
-        let sentence = wordTexts.joined()
-        guard !wordTexts.isEmpty, !sentence.isEmpty else { return }
+        let currentWords = words
+        let sentence = currentWords.map(\.text).joined()
+        guard !currentWords.isEmpty, !sentence.isEmpty else { return }
 
         definitionsError = nil
         isLoadingDefinitions = true
 
         do {
-            let definitions = try await translator.fetchDefinitions(sentence: sentence, words: wordTexts)
+            let definitions = try await translator.fetchDefinitions(sentence: sentence, words: currentWords)
             var updated = words
             for i in updated.indices where i < definitions.count {
                 updated[i].definition = definitions[i]
@@ -707,6 +796,19 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+/// Sizes an action-button label: full-width on iPhone (stacked layout), fixed
+/// `minWidth` on iPad (horizontal row).
+private struct ActionButtonWidth: ViewModifier {
+    let isPhone: Bool
+    let minWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: isPhone ? .infinity : nil)
+            .frame(minWidth: isPhone ? nil : minWidth)
+    }
 }
 
 private struct PomodoroPill: View {

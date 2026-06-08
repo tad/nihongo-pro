@@ -1,6 +1,7 @@
 import AVFoundation
 import CryptoKit
 import Foundation
+import UIKit
 
 enum SpeechRate: String, CaseIterable, Identifiable {
     case natural
@@ -110,9 +111,23 @@ final class SpeechService: NSObject, ObservableObject {
         if isSpeaking { isSpeaking = false }
     }
 
+    // MARK: - Audio session
+
+    private static var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+
+    /// On iPhone, force `.playback` so the ring/silent switch can't mute study
+    /// audio (an iPad has no such switch, and we leave its session untouched so
+    /// iPad behavior is unchanged). No-op on iPad.
+    private func activatePlaybackSessionForPhone() {
+        guard Self.isPhone else { return }
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
     // MARK: - Apple (on-device) voice
 
     private func speakWithApple(_ text: String) {
+        activatePlaybackSessionForPhone()
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = Self.selectedVoice()
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * SpeechRate.current.multiplier
@@ -142,7 +157,9 @@ final class SpeechService: NSObject, ObservableObject {
     @MainActor
     private func startPlayback(_ data: Data) {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient)
+            // iPhone: `.playback` so the ring/silent switch can't mute audio.
+            // iPad: keep `.ambient` (unchanged).
+            try AVAudioSession.sharedInstance().setCategory(Self.isPhone ? .playback : .ambient)
             try AVAudioSession.sharedInstance().setActive(true)
             let player = try AVAudioPlayer(data: data)
             player.delegate = self
