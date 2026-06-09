@@ -32,6 +32,7 @@
 		FA00000000000000000000D3 /* ActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CF /* ActivityTracker.swift */; };
 		FA00000000000000000000D5 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D4 /* ExportService.swift */; };
 		FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D8 /* AzureSpeechService.swift */; };
+		FA00000000000000000000DB /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DA /* SyncCoordinator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +62,8 @@
 		FA00000000000000000000CF /* ActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D4 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D8 /* AzureSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureSpeechService.swift; sourceTree = "<group>"; };
+		FA00000000000000000000DA /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
+		FA00000000000000000000DC /* NihongoPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NihongoPro.entitlements; sourceTree = "<group>"; };
 		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -110,6 +113,8 @@
 				FA00000000000000000000CF /* ActivityTracker.swift */,
 				FA00000000000000000000D4 /* ExportService.swift */,
 				FA00000000000000000000D8 /* AzureSpeechService.swift */,
+				FA00000000000000000000DA /* SyncCoordinator.swift */,
+				FA00000000000000000000DC /* NihongoPro.entitlements */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -218,6 +223,7 @@
 				FA00000000000000000000D3 /* ActivityTracker.swift in Sources */,
 				FA00000000000000000000D5 /* ExportService.swift in Sources */,
 				FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */,
+				FA00000000000000000000DB /* SyncCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -353,6 +359,7 @@
 				DEVELOPMENT_TEAM = 8ESFB959UQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = NihongoPro/NihongoPro.entitlements;
 				INFOPLIST_FILE = NihongoPro/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -385,6 +392,7 @@
 				DEVELOPMENT_TEAM = 8ESFB959UQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = NihongoPro/NihongoPro.entitlements;
 				INFOPLIST_FILE = NihongoPro/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

@@ -24,28 +24,58 @@ struct SavedSentence: Codable, Identifiable {
     }
 }
 
-/// `@MainActor @Observable` disk-backed store for bookmarked sentences. Mirrors the
-/// `FamiliarityStore` pattern: read synchronously inside SwiftUI bodies, writes
-/// dispatched via `Task.detached` (atomic). Persists to
-/// `applicationSupportDirectory/NihongoPro/saved_sentences.json`.
+/// `@MainActor @Observable` store for bookmarked sentences. Sentences sync across
+/// devices as a **union keyed by trimmed text**: this device tracks its own entries
+/// and deletions (`mySaved`, with `deletedAt` tombstones), and the exposed
+/// `sentences` merges them with every other device's slice (`remote`), taking the
+/// most recent event (save or delete) per text. Tombstones stop a sentence deleted
+/// on one device from resurrecting from another (see [SyncCoordinator]).
 @MainActor
 @Observable
 final class SavedSentenceStore {
     static let shared = SavedSentenceStore()
 
-    /// Newest first.
+    /// Merged, newest first, tombstones excluded.
     private(set) var sentences: [SavedSentence] = []
 
-    private let storeURL: URL
+    /// This device's own entries, including `deletedAt` tombstones.
+    private var mySaved: [SavedSliceEntry] = []
+    /// Other devices' slices, keyed by deviceID.
+    private var remote: [String: DeviceSavedSlice] = [:]
+
+    private let sliceURL: URL
+    private let remoteURL: URL
 
     private init() {
         let dir = Self.storeDirectory()
-        self.storeURL = dir.appendingPathComponent("saved_sentences.json")
+        self.sliceURL = dir.appendingPathComponent("saved_slice.json")
+        self.remoteURL = dir.appendingPathComponent("saved_remote.json")
 
-        if let data = try? Data(contentsOf: storeURL),
-           let decoded = try? JSONDecoder().decode([SavedSentence].self, from: data) {
-            self.sentences = decoded.sorted { $0.savedAt > $1.savedAt }
+        if let data = try? Data(contentsOf: sliceURL),
+           let decoded = try? JSONDecoder().decode(DeviceSavedSlice.self, from: data) {
+            mySaved = decoded.entries
+        } else if let data = try? Data(contentsOf: dir.appendingPathComponent("saved_sentences.json")),
+                  let decoded = try? JSONDecoder().decode([SavedSentence].self, from: data) {
+            // Migrate the pre-sync file on first run.
+            mySaved = decoded.map {
+                SavedSliceEntry(
+                    id: $0.id,
+                    text: $0.text,
+                    words: $0.words,
+                    englishTranslation: $0.englishTranslation,
+                    literalTranslation: $0.literalTranslation,
+                    savedAt: $0.savedAt,
+                    deletedAt: nil
+                )
+            }
         }
+
+        if let data = try? Data(contentsOf: remoteURL),
+           let decoded = try? JSONDecoder().decode([String: DeviceSavedSlice].self, from: data) {
+            remote = decoded
+        }
+
+        recompute()
     }
 
     /// A sentence is identified by its surface text — saving the same text twice
@@ -58,27 +88,46 @@ final class SavedSentenceStore {
     func save(text: String, words: [Word], englishTranslation: String, literalTranslation: String? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !words.isEmpty else { return }
-        sentences.removeAll { $0.text == trimmed }
-        let entry = SavedSentence(
+        // Reuse this text's existing id on re-save so list identity stays stable.
+        let existingID = mySaved.first(where: { $0.text == trimmed })?.id ?? UUID()
+        mySaved.removeAll { $0.text == trimmed }
+        mySaved.append(SavedSliceEntry(
+            id: existingID,
             text: trimmed,
             words: words,
             englishTranslation: englishTranslation,
             literalTranslation: literalTranslation,
-            savedAt: Date()
-        )
-        sentences.insert(entry, at: 0)
-        persist()
+            savedAt: Date(),
+            deletedAt: nil
+        ))
+        recompute()
+        persistSlice()
+        SyncCoordinator.shared.markDirty()
     }
 
     func remove(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        sentences.removeAll { $0.text == trimmed }
-        persist()
+        let existing = mySaved.first(where: { $0.text == trimmed })
+        mySaved.removeAll { $0.text == trimmed }
+        // Record a tombstone (newer than any remote save) so the delete wins on merge.
+        mySaved.append(SavedSliceEntry(
+            id: existing?.id ?? UUID(),
+            text: trimmed,
+            words: existing?.words ?? [],
+            englishTranslation: existing?.englishTranslation ?? "",
+            literalTranslation: existing?.literalTranslation,
+            savedAt: existing?.savedAt ?? .distantPast,
+            deletedAt: Date()
+        ))
+        recompute()
+        persistSlice()
+        SyncCoordinator.shared.markDirty()
     }
 
     func remove(id: UUID) {
-        sentences.removeAll { $0.id == id }
-        persist()
+        guard let text = sentences.first(where: { $0.id == id })?.text
+            ?? mySaved.first(where: { $0.id == id })?.text else { return }
+        remove(text)
     }
 
     /// Toggles save state for the given parse. Returns the new state (true = now saved).
@@ -93,9 +142,72 @@ final class SavedSentenceStore {
         }
     }
 
-    private func persist() {
-        let snapshot = sentences
-        let url = storeURL
+    // MARK: Sync
+
+    func localSlice() -> DeviceSavedSlice {
+        DeviceSavedSlice(entries: mySaved)
+    }
+
+    func applyRemoteSlice(deviceID: String, slice: DeviceSavedSlice) {
+        remote[deviceID] = slice
+        recompute()
+        persistRemote()
+    }
+
+    func removeRemoteSlice(deviceID: String) {
+        remote.removeValue(forKey: deviceID)
+        recompute()
+        persistRemote()
+    }
+
+    func clearRemoteSlices() {
+        remote.removeAll()
+        recompute()
+        persistRemote()
+    }
+
+    /// Union by text; the entry with the latest event (save or delete) wins; if that
+    /// winner is a tombstone the text is omitted. Result is newest-save first.
+    private func recompute() {
+        var winners: [String: SavedSliceEntry] = [:]
+        func consider(_ entry: SavedSliceEntry) {
+            if let current = winners[entry.text] {
+                if entry.eventTime > current.eventTime { winners[entry.text] = entry }
+            } else {
+                winners[entry.text] = entry
+            }
+        }
+        for entry in mySaved { consider(entry) }
+        for slice in remote.values {
+            for entry in slice.entries { consider(entry) }
+        }
+        sentences = winners.values
+            .filter { $0.deletedAt == nil }
+            .map {
+                SavedSentence(
+                    id: $0.id,
+                    text: $0.text,
+                    words: $0.words,
+                    englishTranslation: $0.englishTranslation,
+                    literalTranslation: $0.literalTranslation,
+                    savedAt: $0.savedAt
+                )
+            }
+            .sorted { $0.savedAt > $1.savedAt }
+    }
+
+    private func persistSlice() {
+        let slice = DeviceSavedSlice(entries: mySaved)
+        let url = sliceURL
+        Task.detached {
+            guard let data = try? JSONEncoder().encode(slice) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    private func persistRemote() {
+        let snapshot = remote
+        let url = remoteURL
         Task.detached {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: url, options: .atomic)

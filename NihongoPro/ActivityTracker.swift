@@ -1,25 +1,32 @@
 import Foundation
 import SwiftUI
 
-/// `@MainActor @Observable` disk-backed record of how many sentences were parsed
-/// each calendar day, used to drive the streak counter and the recent-activity
-/// chart in `StatsView`. Mirrors the `FamiliarityStore` pattern (read synchronously
-/// in SwiftUI bodies; writes dispatched via `Task.detached`). Persists to
-/// `applicationSupportDirectory/NihongoPro/daily_activity.json` as `[yyyy-MM-dd: Int]`
-/// keyed in the user's current calendar/timezone.
+/// `@MainActor @Observable` per-day record of sentences parsed and pomodoro work
+/// blocks completed, driving the streak counter and recent-activity charts in
+/// `StatsView`. Counts are **additive across devices**: this device tracks only its
+/// OWN per-day counts (`my…`), and the exposed `dailyCounts` / `dailySessions` are
+/// the SUM of this device plus every other device's slice fetched via iCloud
+/// (`remote`). Summing per-device slices means a day's count is never lost even if
+/// the user studies on both devices (see [SyncCoordinator]). Keyed by local-day
+/// string `yyyy-MM-dd` in the user's current calendar/timezone.
 @MainActor
 @Observable
 final class ActivityTracker {
     static let shared = ActivityTracker()
 
-    /// Keyed by local-day string `yyyy-MM-dd` → number of sentences parsed that day.
+    /// Merged (this device + all remote devices) totals. Read by `StatsView` /
+    /// `ExportService`; recomputed whenever a slice changes.
     private(set) var dailyCounts: [String: Int] = [:]
-    /// Keyed by local-day string `yyyy-MM-dd` → number of pomodoro work blocks
-    /// completed that day (counted when the 25-minute work timer finishes).
     private(set) var dailySessions: [String: Int] = [:]
 
-    private let storeURL: URL
-    private let sessionsURL: URL
+    /// This device's own counts.
+    private var myDaily: [String: Int] = [:]
+    private var mySessions: [String: Int] = [:]
+    /// Other devices' slices, keyed by deviceID.
+    private var remote: [String: DeviceActivitySlice] = [:]
+
+    private let sliceURL: URL
+    private let remoteURL: URL
     private let calendar = Calendar.current
 
     private static let dayFormatter: DateFormatter = {
@@ -31,31 +38,51 @@ final class ActivityTracker {
 
     private init() {
         let dir = Self.storeDirectory()
-        self.storeURL = dir.appendingPathComponent("daily_activity.json")
-        self.sessionsURL = dir.appendingPathComponent("daily_sessions.json")
+        self.sliceURL = dir.appendingPathComponent("activity_slice.json")
+        self.remoteURL = dir.appendingPathComponent("activity_remote.json")
 
-        if let data = try? Data(contentsOf: storeURL),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            self.dailyCounts = decoded
+        if let data = try? Data(contentsOf: sliceURL),
+           let decoded = try? JSONDecoder().decode(DeviceActivitySlice.self, from: data) {
+            myDaily = decoded.daily
+            mySessions = decoded.sessions
+        } else {
+            // Migrate from the pre-sync files on first run.
+            let legacyDaily = dir.appendingPathComponent("daily_activity.json")
+            let legacySessions = dir.appendingPathComponent("daily_sessions.json")
+            if let data = try? Data(contentsOf: legacyDaily),
+               let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+                myDaily = decoded
+            }
+            if let data = try? Data(contentsOf: legacySessions),
+               let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+                mySessions = decoded
+            }
         }
-        if let data = try? Data(contentsOf: sessionsURL),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            self.dailySessions = decoded
+
+        if let data = try? Data(contentsOf: remoteURL),
+           let decoded = try? JSONDecoder().decode([String: DeviceActivitySlice].self, from: data) {
+            remote = decoded
         }
+
+        recompute()
     }
 
     /// Called once per successfully parsed sentence.
     func recordParse(on date: Date = Date()) {
         let key = Self.dayFormatter.string(from: date)
-        dailyCounts[key, default: 0] += 1
-        persist()
+        myDaily[key, default: 0] += 1
+        recompute()
+        persistSlice()
+        SyncCoordinator.shared.markDirty()
     }
 
     /// Called when a pomodoro 25-minute work block completes.
     func recordStudySession(on date: Date = Date()) {
         let key = Self.dayFormatter.string(from: date)
-        dailySessions[key, default: 0] += 1
-        persistSessions()
+        mySessions[key, default: 0] += 1
+        recompute()
+        persistSlice()
+        SyncCoordinator.shared.markDirty()
     }
 
     /// Sentences parsed today.
@@ -120,18 +147,53 @@ final class ActivityTracker {
         }
     }
 
-    private func persist() {
-        let snapshot = dailyCounts
-        let url = storeURL
+    // MARK: Sync
+
+    func localSlice() -> DeviceActivitySlice {
+        DeviceActivitySlice(daily: myDaily, sessions: mySessions)
+    }
+
+    func applyRemoteSlice(deviceID: String, slice: DeviceActivitySlice) {
+        remote[deviceID] = slice
+        recompute()
+        persistRemote()
+    }
+
+    func removeRemoteSlice(deviceID: String) {
+        remote.removeValue(forKey: deviceID)
+        recompute()
+        persistRemote()
+    }
+
+    func clearRemoteSlices() {
+        remote.removeAll()
+        recompute()
+        persistRemote()
+    }
+
+    private func recompute() {
+        var daily = myDaily
+        var sessions = mySessions
+        for slice in remote.values {
+            for (k, v) in slice.daily { daily[k, default: 0] += v }
+            for (k, v) in slice.sessions { sessions[k, default: 0] += v }
+        }
+        dailyCounts = daily
+        dailySessions = sessions
+    }
+
+    private func persistSlice() {
+        let slice = DeviceActivitySlice(daily: myDaily, sessions: mySessions)
+        let url = sliceURL
         Task.detached {
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            guard let data = try? JSONEncoder().encode(slice) else { return }
             try? data.write(to: url, options: .atomic)
         }
     }
 
-    private func persistSessions() {
-        let snapshot = dailySessions
-        let url = sessionsURL
+    private func persistRemote() {
+        let snapshot = remote
+        let url = remoteURL
         Task.detached {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: url, options: .atomic)

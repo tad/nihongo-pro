@@ -139,6 +139,44 @@ struct SettingsView: View {
                     Text("Microsoft Azure neural voices. The voice is locked to Japanese and the engine uses a real Japanese dictionary, so readings, the small っ, and numbers are handled reliably. Some voices also offer speaking styles (cheerful, newscast…). The free tier covers 500,000 characters/month — far more than personal study uses. Needs your Azure key and region; used only when the engine above is set to Azure.")
                 }
 
+                Section {
+                    HStack {
+                        Text("iCloud account")
+                        Spacer()
+                        Text(SyncStatus.shared.accountAvailable ? "Available" : "Not available")
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Last synced")
+                        Spacer()
+                        Text(lastSyncedText).foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Other devices")
+                        Spacer()
+                        Text("\(SyncStatus.shared.remoteDeviceCount)").foregroundStyle(.secondary)
+                    }
+                    if let syncError = SyncStatus.shared.lastError {
+                        Text(syncError).foregroundStyle(.red).font(.caption)
+                    }
+                    Button {
+                        Task { await SyncCoordinator.shared.syncNow() }
+                    } label: {
+                        HStack {
+                            Text("Sync now")
+                            if SyncStatus.shared.isSyncing {
+                                Spacer()
+                                ProgressView().controlSize(.small)
+                            }
+                        }
+                    }
+                    .disabled(SyncStatus.shared.isSyncing)
+                } header: {
+                    Text("iCloud Sync")
+                } footer: {
+                    Text("Progress (exposure counts, activity, familiarity, saved sentences) syncs across your devices via iCloud. Sign into the same iCloud account on each device. This device: \(SyncCoordinator.shortDeviceID).")
+                }
+
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
@@ -172,6 +210,13 @@ struct SettingsView: View {
             }
         }
         .interactiveDismissDisabled(!hasExistingKey)
+    }
+
+    private var lastSyncedText: String {
+        guard let date = SyncStatus.shared.lastSyncDate else { return "Never" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     private func voiceLabel(_ voice: AVSpeechSynthesisVoice) -> String {
