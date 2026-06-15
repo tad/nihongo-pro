@@ -186,7 +186,20 @@ struct ContentView: View {
                     studySession = nil
                 }
             }
+            .onOpenURL { url in
+                handleIncomingURL(url)
+            }
         }
+    }
+
+    /// Handle a deep link like `nihongopro://lookup?text=...` (e.g. from MangaAssist):
+    /// drop the sentence into the input field, which auto-translates via onChange.
+    private func handleIncomingURL(_ url: URL) {
+        guard url.scheme == "nihongopro",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let text = components.queryItems?.first(where: { $0.name == "text" })?.value,
+              !text.isEmpty else { return }
+        inputText = text
     }
 
     private func breakOverlay(session: StudySession) -> some View {
