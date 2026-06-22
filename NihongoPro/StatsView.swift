@@ -90,8 +90,8 @@ struct StatsView: View {
         VStack(spacing: 20) {
             summaryCards
             activitySection
-            wordsSection
             kanjiSection
+            wordsSection
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
@@ -108,14 +108,6 @@ struct StatsView: View {
                 SummaryCard(label: "Days studied", value: activity.daysStudied, icon: "calendar")
                 SummaryCard(label: "Today", value: activity.todayCount, icon: "sun.max.fill")
             }
-
-            Divider()
-
-            Text("Sentences · last 14 days")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            ActivityChart(days: activity.recentDays(14))
 
             Divider()
 
@@ -158,14 +150,14 @@ struct StatsView: View {
                 icon: "character"
             )
             SummaryCard(
-                label: "Known words",
-                value: knownWordCount,
+                label: "Known kanji",
+                value: knownKanjiCount,
                 icon: "checkmark.seal.fill",
                 accent: .vermillion
             )
             SummaryCard(
-                label: "Known kanji",
-                value: knownKanjiCount,
+                label: "Known words",
+                value: knownWordCount,
                 icon: "checkmark.seal.fill",
                 accent: .vermillion
             )
