@@ -1,5 +1,22 @@
 import Foundation
 
+/// Which AI service powers the four Claude/ChatGPT calls (translate, definitions, kanji info,
+/// breakdown). Chosen in Settings; stored in UserDefaults under `aiProvider`. The whole app
+/// uses a single provider at a time — there is no per-call-type selection.
+enum AIProvider: String, CaseIterable, Identifiable {
+    case anthropic
+    case openai
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .anthropic: return "Claude"
+        case .openai: return "ChatGPT"
+        }
+    }
+}
+
 struct FuriganaSegment: Codable {
     let text: String
     let reading: String?
@@ -89,7 +106,7 @@ enum TranslationError: LocalizedError {
         case .apiError(let status, let message):
             return "API error (\(status)): \(message)"
         case .decodingFailed:
-            return "Couldn't read the response from Anthropic."
+            return "Couldn't read the response from the AI service."
         case .invalidResponseFormat(let detail):
             return "Couldn't parse the model's JSON response: \(detail)"
         }
@@ -97,9 +114,17 @@ enum TranslationError: LocalizedError {
 }
 
 struct TranslationService {
-    private static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    private static let anthropicEndpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    private static let openAIEndpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
     private static let model = "claude-sonnet-4-6"
+    private static let openAIModel = "gpt-4.1"
     private static let anthropicVersion = "2023-06-01"
+
+    /// The currently-selected AI provider, read live from UserDefaults so a change in Settings
+    /// takes effect on the next call without re-instantiating the service. Defaults to Claude.
+    static var provider: AIProvider {
+        AIProvider(rawValue: UserDefaults.standard.string(forKey: "aiProvider") ?? "") ?? .anthropic
+    }
 
     private static let translationSystemPrompt = """
     You are a Japanese language assistant. For each Japanese sentence the user sends, respond with exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
@@ -355,12 +380,24 @@ struct TranslationService {
         return result
     }
 
+    /// Dispatches to whichever provider is selected in Settings. Both paths take the same
+    /// system/user prompts and return the model's text, so the four public calls and all the
+    /// JSON-extraction/parsing downstream are provider-agnostic.
     private func sendMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
-        guard let apiKey = KeychainStore.read(), !apiKey.isEmpty else {
+        switch Self.provider {
+        case .anthropic:
+            return try await sendAnthropicMessage(systemPrompt: systemPrompt, userMessage: userMessage, maxTokens: maxTokens)
+        case .openai:
+            return try await sendOpenAIMessage(systemPrompt: systemPrompt, userMessage: userMessage, maxTokens: maxTokens)
+        }
+    }
+
+    private func sendAnthropicMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
+        guard let apiKey = KeychainStore.read(account: .anthropic), !apiKey.isEmpty else {
             throw TranslationError.missingAPIKey
         }
 
-        var request = URLRequest(url: Self.endpoint)
+        var request = URLRequest(url: Self.anthropicEndpoint)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue(Self.anthropicVersion, forHTTPHeaderField: "anthropic-version")
@@ -403,6 +440,60 @@ struct TranslationService {
         return decoded.content
             .compactMap { $0.type == "text" ? $0.text : nil }
             .joined()
+    }
+
+    /// OpenAI Chat Completions. gpt-4.1 uses the classic request shape (`max_tokens`, no hidden
+    /// reasoning tokens), so the system prompt maps to a system message and the user prompt to a
+    /// user message, and the assistant text comes back at `choices[0].message.content`. The error
+    /// envelope is `{error:{message}}`, the same shape as Anthropic's, so `APIErrorEnvelope`
+    /// decodes both.
+    private func sendOpenAIMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
+        guard let apiKey = KeychainStore.read(account: .openai), !apiKey.isEmpty else {
+            throw TranslationError.missingAPIKey
+        }
+
+        var request = URLRequest(url: Self.openAIEndpoint)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload = OpenAIChatRequest(
+            model: Self.openAIModel,
+            maxTokens: maxTokens,
+            messages: [
+                .init(role: "system", content: systemPrompt),
+                .init(role: "user", content: userMessage)
+            ]
+        )
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw TranslationError.network(error)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw TranslationError.decodingFailed
+        }
+
+        guard (200..<300).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(APIErrorEnvelope.self, from: data).error.message)
+                ?? String(data: data, encoding: .utf8)
+                ?? "Unknown error"
+            throw TranslationError.apiError(status: http.statusCode, message: message)
+        }
+
+        let decoded: OpenAIChatResponse
+        do {
+            decoded = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+        } catch {
+            throw TranslationError.decodingFailed
+        }
+
+        return decoded.choices.first?.message.content ?? ""
     }
 
     private static func extractJSON(from text: String) -> String {
@@ -510,6 +601,35 @@ private struct MessagesResponse: Decodable {
     struct ContentBlock: Decodable {
         let type: String
         let text: String?
+    }
+}
+
+private struct OpenAIChatRequest: Encodable {
+    let model: String
+    let maxTokens: Int
+    let messages: [Message]
+
+    struct Message: Encodable {
+        let role: String
+        let content: String
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case maxTokens = "max_tokens"
+        case messages
+    }
+}
+
+private struct OpenAIChatResponse: Decodable {
+    let choices: [Choice]
+
+    struct Choice: Decodable {
+        let message: Message
+    }
+
+    struct Message: Decodable {
+        let content: String?
     }
 }
 

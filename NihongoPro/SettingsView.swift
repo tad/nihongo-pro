@@ -9,6 +9,11 @@ struct SettingsView: View {
     @State private var apiKey: String = ""
     @State private var errorMessage: String?
     @State private var hasExistingKey: Bool
+
+    // Which AI service powers the translation/definition/kanji/breakdown calls.
+    @AppStorage("aiProvider") private var aiProviderRaw: String = AIProvider.anthropic.rawValue
+    @State private var openAIKey: String = ""
+    @State private var hasOpenAIKey: Bool
     @AppStorage("speechRate") private var speechRateRaw: String = SpeechRate.natural.rawValue
     @AppStorage("speechVoiceIdentifier") private var speechVoiceIdentifier: String = ""
 
@@ -28,12 +33,26 @@ struct SettingsView: View {
     init(speechService: SpeechService) {
         self.speechService = speechService
         _hasExistingKey = State(initialValue: KeychainStore.read() != nil)
+        _hasOpenAIKey = State(initialValue: KeychainStore.read(account: .openai) != nil)
         _hasAzureKey = State(initialValue: KeychainStore.read(account: .azure) != nil)
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Provider", selection: $aiProviderRaw) {
+                        ForEach(AIProvider.allCases) { provider in
+                            Text(provider.label).tag(provider.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("AI Provider")
+                } footer: {
+                    Text("Which AI service powers translations, definitions, kanji info, and breakdowns. Claude uses your Anthropic key; ChatGPT uses your OpenAI key. Set the matching key below.")
+                }
+
                 Section {
                     SecureField("sk-ant-...", text: $apiKey)
                         .textInputAutocapitalization(.never)
@@ -42,7 +61,27 @@ struct SettingsView: View {
                 } header: {
                     Text("Anthropic API Key")
                 } footer: {
-                    Text("Stored securely in the iOS Keychain. Used only to call api.anthropic.com for translations.")
+                    Text("Stored securely in the iOS Keychain. Used only to call api.anthropic.com when the provider is Claude.")
+                }
+
+                Section {
+                    SecureField("sk-...", text: $openAIKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.system(.body, design: .monospaced))
+                    Button(hasOpenAIKey ? "Update Key" : "Save Key") { saveOpenAIKey() }
+                        .disabled(openAIKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if hasOpenAIKey {
+                        Button("Remove OpenAI Key", role: .destructive) {
+                            try? KeychainStore.delete(account: .openai)
+                            hasOpenAIKey = false
+                            openAIKey = ""
+                        }
+                    }
+                } header: {
+                    Text("OpenAI API Key")
+                } footer: {
+                    Text("Stored securely in the iOS Keychain. Used only to call api.openai.com when the provider is ChatGPT (gpt-4.1).")
                 }
 
                 Section {
@@ -235,6 +274,19 @@ struct SettingsView: View {
         do {
             try KeychainStore.save(trimmed)
             dismiss()
+        } catch {
+            errorMessage = "Couldn't save to Keychain: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveOpenAIKey() {
+        let trimmed = openAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            try KeychainStore.save(trimmed, account: .openai)
+            errorMessage = nil
+            hasOpenAIKey = true
+            openAIKey = ""
         } catch {
             errorMessage = "Couldn't save to Keychain: \(error.localizedDescription)"
         }

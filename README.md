@@ -2,7 +2,7 @@
 
 A personal Japanese-study app for **iPad and iPhone**. Paste a Japanese sentence and see it back instantly — tap any word for its meaning, try to understand the sentence yourself, then tap **Show translation** to reveal the natural English when you're ready. Toggle **furigana** on top of the kanji whenever you need a reading hint.
 
-Translation and furigana are powered by Claude (Anthropic's Messages API). Your API key is stored in the iOS Keychain on-device — it never leaves the device except to call `api.anthropic.com`.
+Translation and furigana are powered by your choice of **Claude** (Anthropic's Messages API) or **ChatGPT** (OpenAI's Chat Completions API, `gpt-4.1`) — switch providers in Settings. Your API key is stored in the iOS Keychain on-device — it never leaves the device except to call the provider you've selected (`api.anthropic.com` or `api.openai.com`).
 
 The app is universal: on iPad it keeps the full-width layout; on iPhone (portrait) it adapts — navigation collapses into a **•••** toolbar menu (the furigana and reading-drill toggles stay visible), the action buttons stack vertically, and the Progress grids reflow to two columns. On iPhone you can dismiss the software keyboard with the **Done** button above it or by dragging the sentence area down, so it doesn't hog the screen.
 
@@ -10,7 +10,7 @@ The app is universal: on iPad it keeps the full-width layout; on iPhone (portrai
 
 - Xcode 26 or newer
 - An iPad or iPhone (or simulator) running iPadOS / iOS 26 or newer
-- An [Anthropic API key](https://console.anthropic.com/) (pay-as-you-go; sentence translations cost a fraction of a cent)
+- An [Anthropic API key](https://console.anthropic.com/) and/or an [OpenAI API key](https://platform.openai.com/api-keys) (pay-as-you-go; sentence translations cost a fraction of a cent). You only need a key for the provider you select.
 - An Apple ID for code signing. A free personal team builds and runs the app, but **iCloud sync requires a paid Apple Developer Program membership** (the iCloud/CloudKit capability isn't available on free teams). Without it, the app still works fully — just per-device with no sync.
 - For iCloud sync: both devices signed into the **same iCloud account**. (Before any TestFlight/App Store build, promote the CloudKit schema from Development to Production in the CloudKit Dashboard.)
 
@@ -28,6 +28,8 @@ The app is universal: on iPad it keeps the full-width layout; on iPhone (portrai
 ## First launch
 
 The Settings sheet appears automatically. Paste your Anthropic API key (starts with `sk-ant-…`) and tap **Save**. The key is written to the iOS Keychain. You can change or remove it any time via the gear icon in the top-right.
+
+**Choosing an AI provider:** the **AI Provider** picker at the top of Settings switches all AI calls (translations, definitions, kanji info, breakdowns) between **Claude** and **ChatGPT**. Claude uses your Anthropic key; ChatGPT uses your OpenAI key (entered in the *OpenAI API Key* section, `sk-…`). Set the key for whichever provider you pick. Claude is the default.
 
 ## Using it
 
@@ -98,8 +100,8 @@ A calm Japanese-inspired palette: deep indigo (kon-iro) for the primary accent, 
 ## Tech stack
 
 - SwiftUI (universal — iPadOS / iOS 26+), no third-party dependencies; the iPhone layout is gated on device idiom so the iPad UI is unchanged
-- Anthropic Messages API (`claude-sonnet-4-6`) via `URLSession`
-- iOS Keychain (`Security` framework) for API key storage (Anthropic + optional Azure Speech)
+- Anthropic Messages API (`claude-sonnet-4-6`) or OpenAI Chat Completions API (`gpt-4.1`) via `URLSession` — selectable in Settings
+- iOS Keychain (`Security` framework) for API key storage (Anthropic + OpenAI + optional Azure Speech)
 - `AVSpeechSynthesizer` (`AVFoundation`) for on-device Japanese TTS, with an optional [Azure Speech](https://portal.azure.com) neural-voice path (`AVAudioPlayer` + on-device MP3 cache)
 - `CloudKit` (`CKSyncEngine`, private database) for serverless iCloud sync of progress across devices
 - Native SwiftUI stroke renderer (`Path` trim animation on a 109-unit canvas with grid + numbered badges)
@@ -112,4 +114,4 @@ Stroke order data is provided by the [KanjiVG project](https://kanjivg.tagaini.n
 
 ## Privacy
 
-Japanese sentences you translate are sent to Anthropic's API for processing (subject to [Anthropic's data-handling policies](https://www.anthropic.com/legal/privacy)). Nothing is stored on a server controlled by this app, and nothing is sent anywhere else.
+Japanese sentences you translate are sent to your selected AI provider for processing — either Anthropic (subject to [Anthropic's data-handling policies](https://www.anthropic.com/legal/privacy)) or OpenAI (subject to [OpenAI's policies](https://openai.com/policies/)). Nothing is stored on a server controlled by this app, and nothing is sent anywhere else.

@@ -7,6 +7,7 @@ enum KeychainStore {
     /// Distinct accounts under the same Keychain service — one per API provider.
     enum Account: String {
         case anthropic = "anthropic-api-key"
+        case openai = "openai-api-key"
         case azure = "azure-speech-key"
     }
 
