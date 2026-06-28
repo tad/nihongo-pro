@@ -234,7 +234,7 @@ struct ContentView: View {
                 VStack(spacing: 16) {
                     ProgressView()
                         .controlSize(.large)
-                    Text("Waiting on Claude…")
+                    Text("Waiting on \(TranslationService.provider.label)…")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
