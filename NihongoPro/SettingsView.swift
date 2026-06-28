@@ -103,7 +103,7 @@ struct SettingsView: View {
                         .font(.system(.body, design: .monospaced))
                     Button(hasSyncSecret ? "Update" : "Save") { saveSyncConfig() }
                         .disabled(syncSecret.trimmingCharacters(in: .whitespaces).isEmpty && !hasSyncSecret)
-                    Button("Sync now") { VideoStudySync.shared.uploadNow(); syncMessage = "Pushed." }
+                    Button("Sync now") { VideoStudySync.shared.syncNow(); syncMessage = "Syncing…" }
                         .disabled(!VideoStudySync.shared.isConfigured)
                     if hasSyncSecret {
                         Button("Remove sync secret", role: .destructive) {
@@ -118,7 +118,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Video-Study Sync")
                 } footer: {
-                    Text("Pushes your known words & kanji to the Video-Study Chrome extension via your Cloudflare worker. Enter the worker URL and the same shared secret you set on the worker. One-way; runs automatically when you change a familiarity level.")
+                    Text("Two-way sync of your known words & kanji with the Video-Study Chrome extension via your Cloudflare worker. Enter the worker URL and the same shared secret you set on the worker. Syncs automatically on launch, periodically, and when you change a familiarity level.")
                 }
 
                 Section {
@@ -330,8 +330,8 @@ struct SettingsView: View {
                 return
             }
         }
-        VideoStudySync.shared.uploadNow()
-        syncMessage = "Saved and pushed."
+        VideoStudySync.shared.syncNow()
+        syncMessage = "Saved and synced."
     }
 
     private func saveOpenAIKey() {

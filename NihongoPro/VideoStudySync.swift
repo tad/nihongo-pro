@@ -1,8 +1,12 @@
 import Foundation
 
-/// One-way push of the merged familiarity (known/familiar words + kanji) to the Video-Study
-/// Chrome extension via a small Cloudflare Worker relay. Nihongo Pro is the source of truth;
-/// the extension pulls and merges. Uploads are debounced on change and fired once on launch.
+/// Two-way familiarity sync with the **Video-Study** Chrome extension via a Cloudflare Worker
+/// relay (KV-backed, `X-Shared-Secret` auth). Per-key newest-wins with tombstones, so marks
+/// AND clears propagate both directions.
+///
+/// `sync()` pulls the relay blob and merges it into this device's slice (which then persists
+/// and rides CloudKit to other devices), then pushes the merged familiarity back. Runs on
+/// launch, on a periodic timer, and debounced after each local change.
 ///
 /// Config: worker URL in `@AppStorage("videoStudySyncURL")`, shared secret in the Keychain
 /// (`KeychainStore.Account.videoStudySync`). No-ops until both are set.
@@ -12,6 +16,18 @@ final class VideoStudySync {
     private init() {}
 
     private var pending: Task<Void, Never>?
+
+    // Wire format (matches the worker + extension). `level` ∈ unknown|familiar|known;
+    // `t` is epoch milliseconds.
+    private struct WireEntry: Codable { let level: String; let t: Double }
+    private struct WireBlob: Codable {
+        let words: [String: WireEntry]?
+        let kanji: [String: WireEntry]?
+    }
+    private struct WirePush: Codable {
+        let words: [String: WireEntry]
+        let kanji: [String: WireEntry]
+    }
 
     private var config: (url: URL, secret: String)? {
         let urlString = (UserDefaults.standard.string(forKey: "videoStudySyncURL") ?? "")
@@ -25,37 +41,76 @@ final class VideoStudySync {
 
     var isConfigured: Bool { config != nil }
 
-    /// Debounced upload — call on each familiarity change so rapid edits batch into one PUT.
-    func scheduleUpload() {
+    func syncNow() {
+        Task { await sync() }
+    }
+
+    /// Debounced sync — call after a local familiarity change so rapid edits batch.
+    func scheduleSync() {
         pending?.cancel()
         pending = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
             if Task.isCancelled { return }
-            await self?.upload()
+            await self?.sync()
         }
     }
 
-    /// Immediate upload — call on launch.
-    func uploadNow() {
-        Task { await upload() }
+    func sync() async {
+        guard let (url, secret) = config else { return }
+        let endpoint = url.appendingPathComponent("familiarity")
+
+        // 1. Pull + merge into this device's slice.
+        if let blob = await get(endpoint, secret: secret) {
+            FamiliarityStore.shared.applyVideoStudyEntries(
+                word: entries(from: blob.words),
+                kanji: entries(from: blob.kanji)
+            )
+        }
+
+        // 2. Push the merged state (this device + CloudKit remotes), tombstones included.
+        let merged = FamiliarityStore.shared.mergedFamiliarityForSync()
+        let push = WirePush(words: wire(from: merged.word), kanji: wire(from: merged.kanji))
+        await post(endpoint, secret: secret, body: push)
     }
 
-    private func upload() async {
-        guard let (url, secret) = config else { return }
+    // MARK: Conversions
 
-        // wordLevels/kanjiLevels are the merged view with tombstones already excluded.
-        let store = FamiliarityStore.shared
-        let words = store.wordLevels.mapValues { $0.rawValue }
-        let kanji = store.kanjiLevels.mapValues { $0.rawValue }
-        let payload: [String: Any] = ["words": words, "kanji": kanji]
-        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+    private func entries(from dict: [String: WireEntry]?) -> [String: FamiliaritySliceEntry] {
+        var out: [String: FamiliaritySliceEntry] = [:]
+        for (key, e) in dict ?? [:] {
+            out[key] = FamiliaritySliceEntry(level: e.level,
+                                             modifiedAt: Date(timeIntervalSince1970: e.t / 1000))
+        }
+        return out
+    }
 
-        var request = URLRequest(url: url.appendingPathComponent("familiarity"))
-        request.httpMethod = "PUT"
+    private func wire(from dict: [String: FamiliaritySliceEntry]) -> [String: WireEntry] {
+        var out: [String: WireEntry] = [:]
+        for (key, e) in dict {
+            out[key] = WireEntry(level: e.level, t: e.modifiedAt.timeIntervalSince1970 * 1000)
+        }
+        return out
+    }
+
+    // MARK: HTTP
+
+    private func get(_ endpoint: URL, secret: String) async -> WireBlob? {
+        var request = URLRequest(url: endpoint)
+        request.setValue(secret, forHTTPHeaderField: "X-Shared-Secret")
+        guard let (data, resp) = try? await URLSession.shared.data(for: request),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let blob = try? JSONDecoder().decode(WireBlob.self, from: data)
+        else { return nil }
+        return blob
+    }
+
+    private func post(_ endpoint: URL, secret: String, body: WirePush) async {
+        guard let data = try? JSONEncoder().encode(body) else { return }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(secret, forHTTPHeaderField: "X-Shared-Secret")
-        request.httpBody = body
-
+        request.httpBody = data
         _ = try? await URLSession.shared.data(for: request)
     }
 }

@@ -92,7 +92,7 @@ final class FamiliarityStore {
         recompute()
         persistSlice()
         SyncCoordinator.shared.markDirty()
-        VideoStudySync.shared.scheduleUpload()
+        VideoStudySync.shared.scheduleSync()
     }
 
     func setKanjiLevel(_ level: Level, for kanji: Character) {
@@ -100,7 +100,7 @@ final class FamiliarityStore {
         recompute()
         persistSlice()
         SyncCoordinator.shared.markDirty()
-        VideoStudySync.shared.scheduleUpload()
+        VideoStudySync.shared.scheduleSync()
     }
 
     // MARK: Sync
@@ -125,6 +125,58 @@ final class FamiliarityStore {
         remote.removeAll()
         recompute()
         persistRemote()
+    }
+
+    // MARK: Video-Study two-way sync
+
+    /// Merge timestamped entries from the Video-Study extension into THIS device's slice
+    /// (newest-wins per key, tombstones included). They become first-class ratings, so they
+    /// persist locally and also ride CloudKit to the user's other devices.
+    func applyVideoStudyEntries(word: [String: FamiliaritySliceEntry],
+                                kanji: [String: FamiliaritySliceEntry]) {
+        var changed = false
+        for (key, entry) in word {
+            if let cur = myWord[key] {
+                if entry.modifiedAt > cur.modifiedAt { myWord[key] = entry; changed = true }
+            } else {
+                myWord[key] = entry; changed = true
+            }
+        }
+        for (key, entry) in kanji {
+            if let cur = myKanji[key] {
+                if entry.modifiedAt > cur.modifiedAt { myKanji[key] = entry; changed = true }
+            } else {
+                myKanji[key] = entry; changed = true
+            }
+        }
+        if changed {
+            recompute()
+            persistSlice()
+            SyncCoordinator.shared.markDirty()
+        }
+    }
+
+    /// Merged familiarity (this device + CloudKit remotes), entries **including** `.unknown`
+    /// tombstones, for pushing to the Video-Study relay.
+    func mergedFamiliarityForSync() -> (word: [String: FamiliaritySliceEntry],
+                                        kanji: [String: FamiliaritySliceEntry]) {
+        (Self.mergeEntries(my: myWord, remote: remote.values.map(\.word)),
+         Self.mergeEntries(my: myKanji, remote: remote.values.map(\.kanji)))
+    }
+
+    private static func mergeEntries(my: [String: FamiliaritySliceEntry],
+                                     remote: [[String: FamiliaritySliceEntry]]) -> [String: FamiliaritySliceEntry] {
+        var winners = my
+        for slice in remote {
+            for (key, entry) in slice {
+                if let current = winners[key] {
+                    if entry.modifiedAt > current.modifiedAt { winners[key] = entry }
+                } else {
+                    winners[key] = entry
+                }
+            }
+        }
+        return winners
     }
 
     private func recompute() {
