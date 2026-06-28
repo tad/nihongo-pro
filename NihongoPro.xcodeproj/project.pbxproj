@@ -33,6 +33,7 @@
 		FA00000000000000000000D5 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D4 /* ExportService.swift */; };
 		FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D8 /* AzureSpeechService.swift */; };
 		FA00000000000000000000DB /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DA /* SyncCoordinator.swift */; };
+		FA00000000000000000000DE /* VideoStudySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DD /* VideoStudySync.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +64,7 @@
 		FA00000000000000000000D4 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D8 /* AzureSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureSpeechService.swift; sourceTree = "<group>"; };
 		FA00000000000000000000DA /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
+		FA00000000000000000000DD /* VideoStudySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStudySync.swift; sourceTree = "<group>"; };
 		FA00000000000000000000DC /* NihongoPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NihongoPro.entitlements; sourceTree = "<group>"; };
 		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -114,6 +116,7 @@
 				FA00000000000000000000D4 /* ExportService.swift */,
 				FA00000000000000000000D8 /* AzureSpeechService.swift */,
 				FA00000000000000000000DA /* SyncCoordinator.swift */,
+				FA00000000000000000000DD /* VideoStudySync.swift */,
 				FA00000000000000000000DC /* NihongoPro.entitlements */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
@@ -224,6 +227,7 @@
 				FA00000000000000000000D5 /* ExportService.swift in Sources */,
 				FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */,
 				FA00000000000000000000DB /* SyncCoordinator.swift in Sources */,
+				FA00000000000000000000DE /* VideoStudySync.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

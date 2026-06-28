@@ -30,11 +30,18 @@ struct SettingsView: View {
     @State private var azureVoicesLoading = false
     @State private var azureError: String?
 
+    // Video-Study sync (push known words/kanji to the Chrome extension via the CF worker).
+    @AppStorage("videoStudySyncURL") private var videoStudySyncURL: String = ""
+    @State private var syncSecret: String = ""
+    @State private var hasSyncSecret: Bool
+    @State private var syncMessage: String?
+
     init(speechService: SpeechService) {
         self.speechService = speechService
         _hasExistingKey = State(initialValue: KeychainStore.read() != nil)
         _hasOpenAIKey = State(initialValue: KeychainStore.read(account: .openai) != nil)
         _hasAzureKey = State(initialValue: KeychainStore.read(account: .azure) != nil)
+        _hasSyncSecret = State(initialValue: KeychainStore.read(account: .videoStudySync) != nil)
     }
 
     var body: some View {
@@ -82,6 +89,36 @@ struct SettingsView: View {
                     Text("OpenAI API Key")
                 } footer: {
                     Text("Stored securely in the iOS Keychain. Used only to call api.openai.com when the provider is ChatGPT (gpt-4.1).")
+                }
+
+                Section {
+                    TextField("https://video-study-sync.<you>.workers.dev", text: $videoStudySyncURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .font(.system(.body, design: .monospaced))
+                    SecureField("shared secret", text: $syncSecret)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.system(.body, design: .monospaced))
+                    Button(hasSyncSecret ? "Update" : "Save") { saveSyncConfig() }
+                        .disabled(syncSecret.trimmingCharacters(in: .whitespaces).isEmpty && !hasSyncSecret)
+                    Button("Sync now") { VideoStudySync.shared.uploadNow(); syncMessage = "Pushed." }
+                        .disabled(!VideoStudySync.shared.isConfigured)
+                    if hasSyncSecret {
+                        Button("Remove sync secret", role: .destructive) {
+                            try? KeychainStore.delete(account: .videoStudySync)
+                            hasSyncSecret = false
+                            syncSecret = ""
+                        }
+                    }
+                    if let syncMessage {
+                        Text(syncMessage).font(.caption).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Video-Study Sync")
+                } footer: {
+                    Text("Pushes your known words & kanji to the Video-Study Chrome extension via your Cloudflare worker. Enter the worker URL and the same shared secret you set on the worker. One-way; runs automatically when you change a familiarity level.")
                 }
 
                 Section {
@@ -277,6 +314,24 @@ struct SettingsView: View {
         } catch {
             errorMessage = "Couldn't save to Keychain: \(error.localizedDescription)"
         }
+    }
+
+    private func saveSyncConfig() {
+        // The worker URL persists automatically via @AppStorage; just store the secret (if
+        // entered) in the Keychain, then push immediately.
+        let trimmed = syncSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            do {
+                try KeychainStore.save(trimmed, account: .videoStudySync)
+                hasSyncSecret = true
+                syncSecret = ""
+            } catch {
+                syncMessage = "Couldn't save secret: \(error.localizedDescription)"
+                return
+            }
+        }
+        VideoStudySync.shared.uploadNow()
+        syncMessage = "Saved and pushed."
     }
 
     private func saveOpenAIKey() {

@@ -92,6 +92,7 @@ final class FamiliarityStore {
         recompute()
         persistSlice()
         SyncCoordinator.shared.markDirty()
+        VideoStudySync.shared.scheduleUpload()
     }
 
     func setKanjiLevel(_ level: Level, for kanji: Character) {
@@ -99,6 +100,7 @@ final class FamiliarityStore {
         recompute()
         persistSlice()
         SyncCoordinator.shared.markDirty()
+        VideoStudySync.shared.scheduleUpload()
     }
 
     // MARK: Sync

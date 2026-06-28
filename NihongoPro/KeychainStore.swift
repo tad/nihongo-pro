@@ -9,6 +9,7 @@ enum KeychainStore {
         case anthropic = "anthropic-api-key"
         case openai = "openai-api-key"
         case azure = "azure-speech-key"
+        case videoStudySync = "video-study-sync-secret"
     }
 
     enum KeychainError: Error {
