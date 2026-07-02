@@ -127,7 +127,7 @@ struct TranslationService {
     }
 
     private static let translationSystemPrompt = """
-    You are a Japanese language assistant. For each Japanese sentence the user sends, respond with exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
+    You are a Japanese language assistant. For each Japanese passage the user sends — one sentence, or a few short ones such as a manga speech bubble — respond with exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
 
     The JSON has three fields:
 
@@ -145,9 +145,9 @@ struct TranslationService {
       - Whitespace and punctuation each get their own word entry
       - Readings must be hiragana only (no katakana, no romaji)
 
-    "translation": a natural, fluent English translation of the full sentence.
+    "translation": a natural, fluent English translation of the full input. When the input has multiple sentences, translate them all, in order.
 
-    "literal_translation": a more literal, grammar-following English rendering of the sentence. It must:
+    "literal_translation": a more literal, grammar-following English rendering of the input (each sentence in order). It must:
       - Preserve the Japanese word/phrase order (topic and other elements first, verb or copula LAST, just as in the Japanese).
       - Convey the function of particles through natural English phrasing rather than bracketed labels: は as "as for X" or "X (topic)" only when it reads naturally, を by placing the object in its Japanese position, に as "to"/"at"/"for", と as "with"/"and", へ as "toward", から as "from", まで as "until/to", の as "'s"/"of", で as "by"/"with"/"at", も as "also/even".
       - Supply subjects or objects that Japanese omits in parentheses, e.g. "(I)", "(it)".
@@ -205,7 +205,7 @@ struct TranslationService {
     """
 
     private static let breakdownSystemPrompt = """
-    You are a Japanese language tutor. The user will send a JSON object containing a Japanese sentence, the words it contains (with readings and definitions where known), and an English translation. Respond with a detailed but concise vocabulary and grammar breakdown of the sentence in plain Markdown.
+    You are a Japanese language tutor. The user will send a JSON object containing a short Japanese passage (one sentence, or a few — e.g. a manga speech bubble), the words it contains (with readings and definitions where known), and an English translation. Respond with a detailed but concise vocabulary and grammar breakdown of the passage in plain Markdown. When the passage has multiple sentences, cover the vocabulary and grammar of all of them, and describe each sentence in the structure section.
 
     Output format, in this exact order:
     1. A section "## Vocabulary" with one bullet per content word (skip particles and punctuation). Use the form: `**WORD** (READING) — meaning [part of speech]`. List each unique content word once.
@@ -250,7 +250,7 @@ struct TranslationService {
         let rawText = try await sendMessage(
             systemPrompt: Self.translationSystemPrompt,
             userMessage: japanese,
-            maxTokens: 8192
+            maxTokens: 16384
         )
         let jsonText = Self.extractJSON(from: rawText)
         guard let jsonData = jsonText.data(using: .utf8) else {

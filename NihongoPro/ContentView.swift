@@ -254,7 +254,7 @@ struct ContentView: View {
             Image(systemName: "text.book.closed")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(Color.accentColor.opacity(0.55))
-            Text("Paste a Japanese sentence")
+            Text("Paste a Japanese sentence or speech bubble")
                 .font(.title3)
                 .foregroundStyle(.primary)
             Text("It'll appear here for you to read before the translation reveals.")
@@ -475,11 +475,11 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
-            if isMultiSentence(inputText) {
+            if isOverLimit(inputText) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "exclamationmark.circle.fill")
                         .foregroundStyle(.orange)
-                    Text("Looks like more than one sentence — please paste just one. Long sentences are fine.")
+                    Text("That's \(trimmedLength(inputText)) characters — the limit is \(Self.maxInputLength). Please trim it to about a speech bubble (a few sentences are fine).")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -583,24 +583,19 @@ struct ContentView: View {
         .disabled(isTranslating || isLoadingDefinitions || englishTranslation.isEmpty)
     }
 
-    private func isMultiSentence(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+    /// Maximum input length in characters. Sized for a manga speech bubble or a
+    /// few sentences (a typical bubble is 10–60 characters, so even a dense
+    /// narration box fits), while refusing a pasted wall of text — the
+    /// word-by-word parse grows linearly with input and gets slow, expensive,
+    /// and unreadable past this.
+    static let maxInputLength = 200
 
-        var count = 0
-        trimmed.enumerateSubstrings(
-            in: trimmed.startIndex..<trimmed.endIndex,
-            options: .bySentences
-        ) { substring, _, _, stop in
-            guard let s = substring?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else {
-                return
-            }
-            count += 1
-            if count > 1 {
-                stop = true
-            }
-        }
-        return count > 1
+    private func trimmedLength(_ text: String) -> Int {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count
+    }
+
+    private func isOverLimit(_ text: String) -> Bool {
+        trimmedLength(text) > Self.maxInputLength
     }
 
     private func startStudySession() {
@@ -686,7 +681,7 @@ struct ContentView: View {
         }
 
         guard !trimmed.isEmpty,
-              !isMultiSentence(inputText),
+              !isOverLimit(inputText),
               KeychainStore.read() != nil,
               trimmed != parsedInputText else {
             return

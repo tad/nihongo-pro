@@ -1,6 +1,6 @@
 # Nihongo Pro
 
-A personal Japanese-study app for **iPad and iPhone**. Paste a Japanese sentence and see it back instantly — tap any word for its meaning, try to understand the sentence yourself, then tap **Show translation** to reveal the natural English when you're ready. Toggle **furigana** on top of the kanji whenever you need a reading hint.
+A personal Japanese-study app for **iPad and iPhone**. Paste a Japanese sentence — or a few short ones, like a manga speech bubble — and see it back instantly: tap any word for its meaning, try to understand it yourself, then tap **Show translation** to reveal the natural English when you're ready. Toggle **furigana** on top of the kanji whenever you need a reading hint.
 
 Translation and furigana are powered by your choice of **Claude** (Anthropic's Messages API) or **ChatGPT** (OpenAI's Chat Completions API, `gpt-4.1`) — switch providers in Settings. Your API key is stored in the iOS Keychain on-device — it never leaves the device except to call the provider you've selected (`api.anthropic.com` or `api.openai.com`).
 
@@ -33,7 +33,7 @@ The Settings sheet appears automatically. Paste your Anthropic API key (starts w
 
 ## Using it
 
-1. Paste a Japanese sentence into the text box at the bottom. Input is limited to a single sentence — long sentences are welcome, but multi-sentence text will block the auto-parse and show a warning.
+1. Paste some Japanese into the text box at the bottom — one sentence or a few short ones, like a manga speech bubble. Input is limited to 200 characters; anything longer blocks the auto-parse and shows a warning with the current count.
 2. About a second after you stop typing/pasting, the sentence renders at the top alongside a speaker button. Japanese audio plays automatically as soon as the result appears; tap the speaker any time to replay. A brief *Loading word definitions…* indicator runs while per-word definitions load in the background; once they arrive, tappable words become underlined. Furigana is off by default — tap the **book icon** in the top-right toolbar to flip on hiragana readings above the kanji (the setting is remembered across launches; Known words you've graduated will still hide their furigana).
 3. **Tap any underlined word** in the Japanese sentence to open a definition sheet with its kana reading and an English meaning. (Punctuation is unmarked and not tappable.) Tap the speaker icon inside the sheet to hear just that word pronounced. Inside that sheet, the word's kanji characters appear underlined in the accent color — tap any kanji to drill into a new sheet showing its meaning, on'yomi/kun'yomi readings, a short note, and an animated stroke order diagram. Drag the sheet down or tap *Done* to dismiss.
 4. Try to understand the sentence on your own. Once the Japanese has rendered, a **Show translation** button appears at the bottom — tap it when you're ready to reveal the natural English below.
