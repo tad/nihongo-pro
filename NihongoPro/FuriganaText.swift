@@ -90,6 +90,7 @@ private struct WordView: View {
     let underline: Bool
 
     var body: some View {
+        let store = FamiliarityStore.shared
         HStack(spacing: 0) {
             ForEach(word.furigana.indices, id: \.self) { i in
                 let seg = word.furigana[i]
@@ -98,7 +99,7 @@ private struct WordView: View {
                         .font(rubyFont)
                         .foregroundStyle(rubyColor)
                         .opacity((hideFurigana || seg.reading == nil) ? 0 : 1)
-                    Text(seg.text)
+                    Self.markedUpText(seg.text, store: store)
                         .font(baseFont)
                 }
                 .fixedSize()
@@ -108,11 +109,32 @@ private struct WordView: View {
         .overlay(alignment: .bottom) {
             if underline {
                 Rectangle()
-                    .fill(.tint)
+                    .fill(underlineStyle(store: store))
                     .frame(height: 1.5)
             }
         }
         .contentShape(Rectangle())
+    }
+
+    /// Segment text with each kanji tinted by its familiarity level (green for
+    /// Known, amber for Familiar); kana and unrated kanji keep the default color.
+    private static func markedUpText(_ text: String, store: FamiliarityStore) -> Text {
+        text.reduce(Text(verbatim: "")) { result, char in
+            var t = Text(String(char))
+            if char.isKanji, let color = store.kanjiLevel(for: char).markupColor {
+                t = t.foregroundStyle(color)
+            }
+            return result + t
+        }
+    }
+
+    /// Underline color follows the word-level familiarity; unrated words keep the
+    /// accent tint so the tappable cue is unchanged for them.
+    private func underlineStyle(store: FamiliarityStore) -> AnyShapeStyle {
+        if let color = store.wordLevel(for: word.text).markupColor {
+            return AnyShapeStyle(color)
+        }
+        return AnyShapeStyle(.tint)
     }
 }
 

@@ -6,6 +6,18 @@ extension Font {
     static let sentenceLarge = Font.system(size: 32, weight: .regular, design: .serif)
 }
 
+extension FamiliarityStore.Level {
+    /// Knowledge-markup color for the sentence display: Known is green, Familiar
+    /// is amber, Unknown is nil (default text color / accent underline).
+    var markupColor: Color? {
+        switch self {
+        case .known: return .knownGreen
+        case .familiar: return .learningYellow
+        case .unknown: return nil
+        }
+    }
+}
+
 extension View {
     func cardChrome(cornerRadius: CGFloat = 20, padding: CGFloat = 24) -> some View {
         self
