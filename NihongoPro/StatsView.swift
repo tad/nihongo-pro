@@ -344,16 +344,25 @@ private struct ExportItem: Identifiable {
 private struct ActivityChart: View {
     let days: [(date: Date, count: Int)]
 
+    /// Drives the appear animation: bars grow up from the baseline with a
+    /// slight left-to-right stagger the first time the chart is shown.
+    @State private var appeared = false
+
     private var maxCount: Int { max(days.map(\.count).max() ?? 0, 1) }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
-            ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+            ForEach(Array(days.enumerated()), id: \.offset) { index, day in
                 VStack(spacing: 6) {
                     Spacer(minLength: 0)
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(isToday(day.date) ? Color.vermillion : Color.accentColor.opacity(day.count > 0 ? 0.7 : 0.15))
                         .frame(height: barHeight(day.count))
+                        .scaleEffect(y: appeared ? 1 : 0.05, anchor: .bottom)
+                        .animation(
+                            .spring(response: 0.45, dampingFraction: 0.8).delay(Double(index) * 0.03),
+                            value: appeared
+                        )
                     Text(day.date, format: .dateTime.weekday(.narrow))
                         .font(.caption2)
                         .foregroundStyle(isToday(day.date) ? Color.vermillion : .secondary)
@@ -362,6 +371,7 @@ private struct ActivityChart: View {
             }
         }
         .frame(height: 96)
+        .onAppear { appeared = true }
     }
 
     private func barHeight(_ count: Int) -> CGFloat {
@@ -407,6 +417,9 @@ private struct DistributionBar: View {
     let familiar: Int
     let known: Int
 
+    /// Drives the appear animation: segments sweep in from the left.
+    @State private var appeared = false
+
     private var total: Int { unknown + familiar + known }
 
     var body: some View {
@@ -417,9 +430,14 @@ private struct DistributionBar: View {
                     segment(count: familiar, width: width(for: familiar, in: geo.size.width), color: Color.accentColor)
                     segment(count: known, width: width(for: known, in: geo.size.width), color: Color.vermillion)
                 }
+                // Sweep in from the left on appear; also animate when the
+                // counts shift live (e.g. rating a word in a nested modal).
+                .animation(.spring(response: 0.55, dampingFraction: 0.85), value: appeared)
+                .animation(.smooth(duration: 0.35), value: [unknown, familiar, known])
             }
             .frame(height: 14)
             .clipShape(Capsule())
+            .onAppear { appeared = true }
 
             HStack(spacing: 18) {
                 LegendChip(color: Color.secondary.opacity(0.35), label: "Unknown", count: unknown)
@@ -440,7 +458,7 @@ private struct DistributionBar: View {
     }
 
     private func width(for count: Int, in totalWidth: CGFloat) -> CGFloat {
-        guard total > 0, count > 0 else { return 0 }
+        guard total > 0, count > 0, appeared else { return 0 }
         return max(2, totalWidth * CGFloat(count) / CGFloat(total))
     }
 }

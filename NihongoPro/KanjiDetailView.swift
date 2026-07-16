@@ -23,33 +23,34 @@ struct KanjiDetailView: View {
                 Color.paperBackground.ignoresSafeArea()
 
                 ScrollView {
+                    // The glyph is the hero — lead with it (mirroring how
+                    // WordDefinitionView leads with the word), then meanings,
+                    // then the rating/lookup controls, then stroke order.
                     VStack(alignment: .leading, spacing: 24) {
-                        Text(seenCountLabel)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(spacing: 8) {
+                            Text(String(kanji))
+                                .font(.displayKanji)
+                                .textSelection(.enabled)
 
-                        familiarityPicker
-
-                        HStack {
-                            NihongoLookupLink(kind: .kanji, query: String(kanji))
-                            Spacer()
+                            if seenCount > 0 {
+                                Text(seenCountLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-
-                        HStack {
-                            JishoLookupLink(kind: .kanji, query: String(kanji))
-                            Spacer()
-                        }
-
-                        Text(String(kanji))
-                            .font(.displayKanji)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .center)
 
                         infoSection
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(20)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .cardChrome()
+
+                        familiarityPicker
+
+                        HStack(spacing: 12) {
+                            NihongoLookupLink(kind: .kanji, query: String(kanji))
+                            JishoLookupLink(kind: .kanji, query: String(kanji))
+                            Spacer()
+                        }
 
                         strokeOrderSection
                     }

@@ -240,20 +240,26 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 60)
+                .transition(.opacity)
             } else if words.isEmpty {
                 emptyState
+                    .transition(.opacity)
             } else {
                 parsedSentenceCard
+                    .transition(.scale(scale: 0.97, anchor: .top).combined(with: .opacity))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: words.isEmpty)
+        .animation(.smooth(duration: 0.25), value: isTranslating)
     }
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "text.book.closed")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(Color.accentColor.opacity(0.55))
+            // Faint serif 読 watermark — echoes the app icon.
+            Text("読")
+                .font(.system(size: 96, design: .serif))
+                .foregroundStyle(Color.accentColor.opacity(0.22))
             Text("Paste a Japanese sentence or speech bubble")
                 .font(.title3)
                 .foregroundStyle(.primary)
@@ -286,6 +292,8 @@ struct ContentView: View {
                         Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
                             .font(.title)
                             .foregroundStyle(.tint)
+                            .contentTransition(.symbolEffect(.replace))
+                            .symbolEffect(.pulse, isActive: speechService.isSpeaking)
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
@@ -309,15 +317,20 @@ struct ContentView: View {
             definitionsStatus
 
             if isTranslationRevealed && !englishTranslation.isEmpty {
-                Divider()
+                Group {
+                    Divider()
 
-                if showingBreakdown {
-                    breakdownContent
-                } else {
-                    translationBlock
+                    if showingBreakdown {
+                        breakdownContent
+                    } else {
+                        translationBlock
+                    }
                 }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(.smooth(duration: 0.35), value: isTranslationRevealed)
+        .animation(.smooth(duration: 0.3), value: showingBreakdown)
         .cardChrome()
     }
 
@@ -455,6 +468,18 @@ struct ContentView: View {
                     }
                 }
 
+            // A quiet running count once the input nears the limit, so hitting
+            // the hard cap is never a surprise. The over-limit warning below
+            // takes over past the cap.
+            if !isOverLimit(inputText) && trimmedLength(inputText) >= Self.counterRevealThreshold {
+                Text("\(trimmedLength(inputText)) / \(Self.maxInputLength)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    .contentTransition(.numericText())
+                    .animation(.smooth(duration: 0.2), value: trimmedLength(inputText))
+                    .padding(.trailing, 4)
+            }
+
             if let errorMessage {
                 Button {
                     self.errorMessage = nil
@@ -589,6 +614,10 @@ struct ContentView: View {
     /// word-by-word parse grows linearly with input and gets slow, expensive,
     /// and unreadable past this.
     static let maxInputLength = 200
+
+    /// The character count at which the quiet "N / 200" counter appears below
+    /// the editor (75% of the cap).
+    static let counterRevealThreshold = 150
 
     private func trimmedLength(_ text: String) -> Int {
         text.trimmingCharacters(in: .whitespacesAndNewlines).count

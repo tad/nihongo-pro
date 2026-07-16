@@ -26,10 +26,12 @@ struct FuriganaText: View {
                     let revealable = Self.hasReading(word)
                     Button {
                         guard revealable else { return }
-                        if revealedIndices.contains(index) {
-                            revealedIndices.remove(index)
-                        } else {
-                            revealedIndices.insert(index)
+                        withAnimation(.smooth(duration: 0.2)) {
+                            if revealedIndices.contains(index) {
+                                revealedIndices.remove(index)
+                            } else {
+                                revealedIndices.insert(index)
+                            }
                         }
                     } label: {
                         WordView(
@@ -41,7 +43,7 @@ struct FuriganaText: View {
                             underline: revealable
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(WordTapStyle())
                     .disabled(!revealable)
                 } else {
                     Button {
@@ -56,7 +58,7 @@ struct FuriganaText: View {
                             underline: word.definition != nil
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(WordTapStyle())
                     .disabled(word.definition == nil)
                 }
             }
@@ -77,6 +79,18 @@ struct FuriganaText: View {
         let kanjiChars = word.text.filter { $0.isKanji }
         guard !kanjiChars.isEmpty else { return false }
         return kanjiChars.allSatisfy { store.kanjiLevel(for: $0) == .known }
+    }
+}
+
+/// Subtle pressed-state feedback for the tappable words in the sentence display:
+/// a small scale-down plus dimming while the finger is down. Replaces `.plain`,
+/// which gives no touch feedback at all.
+private struct WordTapStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.smooth(duration: 0.15), value: configuration.isPressed)
     }
 }
 

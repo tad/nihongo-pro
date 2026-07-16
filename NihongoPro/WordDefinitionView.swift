@@ -52,6 +52,8 @@ struct WordDefinitionView: View {
                                     Image(systemName: speechService.isSpeaking ? "stop.circle.fill" : "speaker.wave.2.fill")
                                         .font(.largeTitle)
                                         .foregroundStyle(.tint)
+                                        .contentTransition(.symbolEffect(.replace))
+                                        .symbolEffect(.pulse, isActive: speechService.isSpeaking)
                                         .frame(width: 56, height: 56)
                                 }
                                 .buttonStyle(.plain)
@@ -60,12 +62,8 @@ struct WordDefinitionView: View {
 
                             familiarityPicker
 
-                            HStack {
+                            HStack(spacing: 12) {
                                 NihongoLookupLink(kind: .word, query: word.text)
-                                Spacer()
-                            }
-
-                            HStack {
                                 JishoLookupLink(kind: .word, query: word.text)
                                 Spacer()
                             }
