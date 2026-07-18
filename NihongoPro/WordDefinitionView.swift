@@ -111,7 +111,8 @@ struct WordDefinitionView: View {
     }
 
     private var wordHeader: some View {
-        HStack(spacing: 0) {
+        let store = FamiliarityStore.shared
+        return HStack(spacing: 0) {
             ForEach(Array(word.text.enumerated()), id: \.offset) { _, char in
                 if char.isKanji {
                     Button {
@@ -119,7 +120,7 @@ struct WordDefinitionView: View {
                     } label: {
                         Text(String(char))
                             .font(.system(size: 64, weight: .regular, design: .serif))
-                            .foregroundStyle(.tint)
+                            .foregroundStyle(kanjiTint(for: char, store: store))
                             .underline()
                     }
                     .buttonStyle(.plain)
@@ -130,6 +131,15 @@ struct WordDefinitionView: View {
             }
         }
         .textSelection(.enabled)
+    }
+
+    /// Same mapping as the sentence view's knowledge markup: Known → green,
+    /// Familiar → amber, Unknown → the accent tint (the tappable-kanji cue).
+    private func kanjiTint(for char: Character, store: FamiliarityStore) -> AnyShapeStyle {
+        if let color = store.kanjiLevel(for: char).markupColor {
+            return AnyShapeStyle(color)
+        }
+        return AnyShapeStyle(.tint)
     }
 }
 
