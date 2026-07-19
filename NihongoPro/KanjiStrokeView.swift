@@ -87,14 +87,6 @@ final class StrokeAnimator: ObservableObject {
         startTask()
     }
 
-    func replay() {
-        guard !strokes.isEmpty else { return }
-        cancel()
-        progress = Array(repeating: 0, count: strokes.count)
-        currentStrokeIndex = 0
-        startTask()
-    }
-
     func cancel() {
         task?.cancel()
         task = nil

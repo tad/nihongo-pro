@@ -386,14 +386,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     // MARK: This device's record metadata (system fields / change tag)
 
     private static func myRecordURL() -> URL {
-        let base = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("NihongoPro", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: dir.path) {
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-        return dir.appendingPathComponent("sync_my_record.bin")
+        AppDataDirectory.url().appendingPathComponent("sync_my_record.bin")
     }
 
     private func loadCachedRecord() -> CKRecord? {
@@ -419,14 +412,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     // MARK: Engine state persistence
 
     private static func stateURL() -> URL {
-        let base = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("NihongoPro", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: dir.path) {
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-        return dir.appendingPathComponent("sync_engine_state.json")
+        AppDataDirectory.url().appendingPathComponent("sync_engine_state.json")
     }
 
     private static func loadState() -> CKSyncEngine.State.Serialization? {

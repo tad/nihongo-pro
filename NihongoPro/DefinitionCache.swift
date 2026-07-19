@@ -1,5 +1,24 @@
 import Foundation
 
+/// The app's Application Support data directory — the single home for every JSON
+/// store and sync file. Created on first use; falls back to the temp directory if
+/// Application Support is somehow unavailable. Shared by all stores so the path
+/// logic lives in one place. (Declared here rather than its own file to avoid a
+/// new pbxproj entry, like `JapaneseWordFilter` in `FrequencyTracker.swift`.)
+enum AppDataDirectory {
+    static func url() -> URL {
+        let base = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first
+            ?? FileManager.default.temporaryDirectory
+        let dir = base.appendingPathComponent("NihongoPro", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+}
+
 actor DefinitionCache {
     static let shared = DefinitionCache()
 
@@ -9,7 +28,7 @@ actor DefinitionCache {
     private let wordCacheURL: URL
 
     private init() {
-        let dir = Self.cacheDirectory()
+        let dir = AppDataDirectory.url()
         let kanjiURL = dir.appendingPathComponent("kanji_cache.json")
         // v2: word definitions are now fetched with the pass-1 reading attached, so
         // the model romanizes/disambiguates from the authoritative reading. Bumping
@@ -59,17 +78,5 @@ actor DefinitionCache {
     private func persistWordCache() {
         guard let data = try? JSONEncoder().encode(wordCache) else { return }
         try? data.write(to: wordCacheURL, options: .atomic)
-    }
-
-    private static func cacheDirectory() -> URL {
-        let base = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.temporaryDirectory
-        let appDir = base.appendingPathComponent("NihongoPro", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: appDir.path) {
-            try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-        }
-        return appDir
     }
 }

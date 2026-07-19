@@ -198,10 +198,8 @@ struct KanjiDetailView: View {
     private func loadInfo() async {
         do {
             info = try await translator.fetchKanjiInfo(kanji: kanji)
-        } catch let error as TranslationError {
-            infoError = error.errorDescription
         } catch {
-            infoError = error.localizedDescription
+            infoError = (error as? TranslationError)?.errorDescription ?? error.localizedDescription
         }
         isLoadingInfo = false
     }
@@ -209,10 +207,8 @@ struct KanjiDetailView: View {
     private func loadSVG() async {
         do {
             svg = try await KanjiVGService.loadSVG(for: kanji)
-        } catch let error as KanjiVGError {
-            svgError = error.errorDescription
         } catch {
-            svgError = error.localizedDescription
+            svgError = (error as? KanjiVGError)?.errorDescription ?? error.localizedDescription
         }
         isLoadingSVG = false
     }

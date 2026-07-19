@@ -68,7 +68,8 @@ enum KanjiVGService {
     }
 
     private static func cacheURL(for codepoint: String) -> URL {
-        let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         return cachesDir.appendingPathComponent("kanji_\(codepoint).svg")
     }
 }

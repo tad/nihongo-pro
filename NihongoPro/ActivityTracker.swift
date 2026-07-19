@@ -37,7 +37,7 @@ final class ActivityTracker {
     }()
 
     private init() {
-        let dir = Self.storeDirectory()
+        let dir = AppDataDirectory.url()
         self.sliceURL = dir.appendingPathComponent("activity_slice.json")
         self.remoteURL = dir.appendingPathComponent("activity_remote.json")
 
@@ -198,17 +198,5 @@ final class ActivityTracker {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: url, options: .atomic)
         }
-    }
-
-    private static func storeDirectory() -> URL {
-        let base = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.temporaryDirectory
-        let appDir = base.appendingPathComponent("NihongoPro", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: appDir.path) {
-            try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-        }
-        return appDir
     }
 }

@@ -44,7 +44,7 @@ final class FamiliarityStore {
     private let remoteURL: URL
 
     private init() {
-        let dir = Self.storeDirectory()
+        let dir = AppDataDirectory.url()
         self.sliceURL = dir.appendingPathComponent("familiarity_slice.json")
         self.remoteURL = dir.appendingPathComponent("familiarity_remote.json")
 
@@ -134,22 +134,9 @@ final class FamiliarityStore {
     /// persist locally and also ride CloudKit to the user's other devices.
     func applyVideoStudyEntries(word: [String: FamiliaritySliceEntry],
                                 kanji: [String: FamiliaritySliceEntry]) {
-        var changed = false
-        for (key, entry) in word {
-            if let cur = myWord[key] {
-                if entry.modifiedAt > cur.modifiedAt { myWord[key] = entry; changed = true }
-            } else {
-                myWord[key] = entry; changed = true
-            }
-        }
-        for (key, entry) in kanji {
-            if let cur = myKanji[key] {
-                if entry.modifiedAt > cur.modifiedAt { myKanji[key] = entry; changed = true }
-            } else {
-                myKanji[key] = entry; changed = true
-            }
-        }
-        if changed {
+        let wordChanged = Self.mergeNewer(word, into: &myWord)
+        let kanjiChanged = Self.mergeNewer(kanji, into: &myKanji)
+        if wordChanged || kanjiChanged {
             recompute()
             persistSlice()
             SyncCoordinator.shared.markDirty()
@@ -168,15 +155,23 @@ final class FamiliarityStore {
                                      remote: [[String: FamiliaritySliceEntry]]) -> [String: FamiliaritySliceEntry] {
         var winners = my
         for slice in remote {
-            for (key, entry) in slice {
-                if let current = winners[key] {
-                    if entry.modifiedAt > current.modifiedAt { winners[key] = entry }
-                } else {
-                    winners[key] = entry
-                }
-            }
+            _ = mergeNewer(slice, into: &winners)
         }
         return winners
+    }
+
+    /// Merges `incoming` into `target`, keeping the newer `modifiedAt` per key.
+    /// Returns whether anything in `target` changed.
+    @discardableResult
+    private static func mergeNewer(_ incoming: [String: FamiliaritySliceEntry],
+                                   into target: inout [String: FamiliaritySliceEntry]) -> Bool {
+        var changed = false
+        for (key, entry) in incoming {
+            if let current = target[key], entry.modifiedAt <= current.modifiedAt { continue }
+            target[key] = entry
+            changed = true
+        }
+        return changed
     }
 
     private func recompute() {
@@ -186,18 +181,8 @@ final class FamiliarityStore {
 
     /// Picks the newest `modifiedAt` per key across all slices; drops tombstones.
     private static func merge(my: [String: FamiliaritySliceEntry], remote: [[String: FamiliaritySliceEntry]]) -> [String: Level] {
-        var winners = my
-        for slice in remote {
-            for (key, entry) in slice {
-                if let current = winners[key] {
-                    if entry.modifiedAt > current.modifiedAt { winners[key] = entry }
-                } else {
-                    winners[key] = entry
-                }
-            }
-        }
         var result: [String: Level] = [:]
-        for (key, entry) in winners {
+        for (key, entry) in mergeEntries(my: my, remote: remote) {
             if let level = Level(rawValue: entry.level), level != .unknown {
                 result[key] = level
             }
@@ -221,18 +206,6 @@ final class FamiliarityStore {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: url, options: .atomic)
         }
-    }
-
-    private static func storeDirectory() -> URL {
-        let base = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.temporaryDirectory
-        let appDir = base.appendingPathComponent("NihongoPro", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: appDir.path) {
-            try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-        }
-        return appDir
     }
 }
 

@@ -42,7 +42,7 @@ actor FrequencyTracker {
     private let remoteURL: URL
 
     private init() {
-        let dir = Self.cacheDirectory()
+        let dir = AppDataDirectory.url()
         self.sliceURL = dir.appendingPathComponent("freq_slice.json")
         self.remoteURL = dir.appendingPathComponent("freq_remote.json")
 
@@ -149,17 +149,5 @@ actor FrequencyTracker {
     private func persistRemote() {
         guard let data = try? JSONEncoder().encode(remote) else { return }
         try? data.write(to: remoteURL, options: .atomic)
-    }
-
-    private static func cacheDirectory() -> URL {
-        let base = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.temporaryDirectory
-        let appDir = base.appendingPathComponent("NihongoPro", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: appDir.path) {
-            try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-        }
-        return appDir
     }
 }

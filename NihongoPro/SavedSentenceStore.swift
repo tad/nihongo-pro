@@ -47,7 +47,7 @@ final class SavedSentenceStore {
     private let remoteURL: URL
 
     private init() {
-        let dir = Self.storeDirectory()
+        let dir = AppDataDirectory.url()
         self.sliceURL = dir.appendingPathComponent("saved_slice.json")
         self.remoteURL = dir.appendingPathComponent("saved_remote.json")
 
@@ -212,17 +212,5 @@ final class SavedSentenceStore {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: url, options: .atomic)
         }
-    }
-
-    private static func storeDirectory() -> URL {
-        let base = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.temporaryDirectory
-        let appDir = base.appendingPathComponent("NihongoPro", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: appDir.path) {
-            try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-        }
-        return appDir
     }
 }

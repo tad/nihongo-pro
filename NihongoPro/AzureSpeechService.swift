@@ -53,7 +53,7 @@ enum AzureSpeechService {
 
         var id: String { shortName }
 
-        /// Short subtitle for the picker row, e.g. "なんなみ · Female".
+        /// Short subtitle for the picker row, e.g. "ななみ · Female".
         var subtitle: String {
             [localName, gender]
                 .map { $0.trimmingCharacters(in: .whitespaces) }

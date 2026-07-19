@@ -264,48 +264,33 @@ struct StatsView: View {
         .cardChrome()
     }
 
-    private var topWords: [(key: String, value: Int)] {
-        Array(wordCounts.sorted { lhs, rhs in
+    /// Top-N entries by count (descending), ties broken by key so the order is stable.
+    private func topEntries(in counts: [String: Int]) -> [(key: String, value: Int)] {
+        Array(counts.sorted { lhs, rhs in
             if lhs.value != rhs.value { return lhs.value > rhs.value }
             return lhs.key < rhs.key
         }.prefix(topListLimit))
     }
 
-    private var topKanji: [(key: String, value: Int)] {
-        Array(kanjiCounts.sorted { lhs, rhs in
-            if lhs.value != rhs.value { return lhs.value > rhs.value }
-            return lhs.key < rhs.key
-        }.prefix(topListLimit))
-    }
-
-    private var knownWordCount: Int {
-        familiarity.wordLevels.reduce(0) { count, entry in
-            entry.value == .known && wordCounts[entry.key] != nil ? count + 1 : count
+    /// How many keys in `counts` are rated `level` — membership in `counts` filters
+    /// out any hypothetical orphan rating so it can't inflate the tally.
+    private func tally(_ level: FamiliarityStore.Level, in levels: [String: FamiliarityStore.Level], seenIn counts: [String: Int]) -> Int {
+        levels.reduce(0) { total, entry in
+            entry.value == level && counts[entry.key] != nil ? total + 1 : total
         }
     }
 
-    private var familiarWordCount: Int {
-        familiarity.wordLevels.reduce(0) { count, entry in
-            entry.value == .familiar && wordCounts[entry.key] != nil ? count + 1 : count
-        }
-    }
+    private var topWords: [(key: String, value: Int)] { topEntries(in: wordCounts) }
+    private var topKanji: [(key: String, value: Int)] { topEntries(in: kanjiCounts) }
 
+    private var knownWordCount: Int { tally(.known, in: familiarity.wordLevels, seenIn: wordCounts) }
+    private var familiarWordCount: Int { tally(.familiar, in: familiarity.wordLevels, seenIn: wordCounts) }
     private var unknownWordCount: Int {
         max(0, wordCounts.count - knownWordCount - familiarWordCount)
     }
 
-    private var knownKanjiCount: Int {
-        familiarity.kanjiLevels.reduce(0) { count, entry in
-            entry.value == .known && kanjiCounts[entry.key] != nil ? count + 1 : count
-        }
-    }
-
-    private var familiarKanjiCount: Int {
-        familiarity.kanjiLevels.reduce(0) { count, entry in
-            entry.value == .familiar && kanjiCounts[entry.key] != nil ? count + 1 : count
-        }
-    }
-
+    private var knownKanjiCount: Int { tally(.known, in: familiarity.kanjiLevels, seenIn: kanjiCounts) }
+    private var familiarKanjiCount: Int { tally(.familiar, in: familiarity.kanjiLevels, seenIn: kanjiCounts) }
     private var unknownKanjiCount: Int {
         max(0, kanjiCounts.count - knownKanjiCount - familiarKanjiCount)
     }

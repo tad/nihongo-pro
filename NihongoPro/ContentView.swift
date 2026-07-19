@@ -755,20 +755,12 @@ struct ContentView: View {
             if autoReadAloud {
                 speechService.speak(result.words.sentenceSpeechText())
             }
-        } catch let error as TranslationError {
-            guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
-                isTranslating = false
-                return
-            }
-            errorMessage = error.errorDescription
-            isTranslating = false
-            return
         } catch {
-            guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
-                isTranslating = false
-                return
+            // A stale error (the input changed while the request was in flight)
+            // is dropped silently — a fresh parse is already on its way.
+            if trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) {
+                errorMessage = Self.describeError(error)
             }
-            errorMessage = error.localizedDescription
             isTranslating = false
             return
         }
@@ -802,10 +794,8 @@ struct ContentView: View {
                 translation: translation
             )
             breakdown = result
-        } catch let error as TranslationError {
-            breakdownError = error.errorDescription
         } catch {
-            breakdownError = error.localizedDescription
+            breakdownError = Self.describeError(error)
         }
         isLoadingBreakdown = false
     }
@@ -825,12 +815,16 @@ struct ContentView: View {
                 updated[i].definition = definitions[i]
             }
             words = updated
-        } catch let error as TranslationError {
-            definitionsError = error.errorDescription
         } catch {
-            definitionsError = error.localizedDescription
+            definitionsError = Self.describeError(error)
         }
         isLoadingDefinitions = false
+    }
+
+    /// `TranslationError`'s tailored message when available, the generic
+    /// `localizedDescription` otherwise.
+    private static func describeError(_ error: Error) -> String {
+        (error as? TranslationError)?.errorDescription ?? error.localizedDescription
     }
 }
 
@@ -852,7 +846,8 @@ private struct ActionButtonWidth: ViewModifier {
 }
 
 private struct PomodoroPill: View {
-    @Bindable var session: StudySession
+    // Plain `let` is enough — @Observable tracks the body's reads; no bindings here.
+    let session: StudySession
 
     var body: some View {
         let tint: Color = session.isOnBreak ? .orange : .accentColor
