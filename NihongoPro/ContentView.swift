@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var studySession: StudySession?
     @State private var showingEndSessionConfirmation: Bool = false
     @AppStorage("showFurigana") private var showFurigana: Bool = false
+    @AppStorage("autoReadAloud") private var autoReadAloud: Bool = false
     @FocusState private var isInputFocused: Bool
     @StateObject private var speechService = SpeechService()
 
@@ -751,7 +752,9 @@ struct ContentView: View {
             ActivityTracker.shared.recordParse()
             // Mostly natural kanji (natural prosody), with only pass-1-flagged tricky-reading
             // words swapped to kana so rare compounds (精米歩合) are pronounced correctly.
-            speechService.speak(result.words.sentenceSpeechText())
+            if autoReadAloud {
+                speechService.speak(result.words.sentenceSpeechText())
+            }
         } catch let error as TranslationError {
             guard trimmed == inputText.trimmingCharacters(in: .whitespacesAndNewlines) else {
                 isTranslating = false

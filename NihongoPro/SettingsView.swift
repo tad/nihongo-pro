@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var openAIKey: String = ""
     @State private var hasOpenAIKey: Bool
     @AppStorage("speechRate") private var speechRateRaw: String = SpeechRate.natural.rawValue
+    @AppStorage("autoReadAloud") private var autoReadAloud: Bool = false
     @AppStorage("speechVoiceIdentifier") private var speechVoiceIdentifier: String = ""
 
     // Which engine synthesizes speech.
@@ -133,13 +134,14 @@ struct SettingsView: View {
                             Text(rate.label).tag(rate.rawValue)
                         }
                     }
+                    Toggle("Read sentence aloud automatically", isOn: $autoReadAloud)
                     Button("Play Sample") {
                         speechService.speak("こんにちは、日本語を話しています。")
                     }
                 } header: {
                     Text("Voice Engine")
                 } footer: {
-                    Text("Which engine speaks. On-device works offline and free; Azure is a more capable cloud voice that needs your own key below. Play Sample uses the selected engine (falling back to on-device if its key is missing). Rate applies to both.")
+                    Text("Which engine speaks. On-device works offline and free; Azure is a more capable cloud voice that needs your own key below. Play Sample uses the selected engine (falling back to on-device if its key is missing). Rate applies to both. When automatic reading is off, use the speaker button on the sentence card to hear it.")
                 }
 
                 Section {
