@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var breakdownError: String?
     @State private var showingBreakdown: Bool = false
     @State private var isTranslationRevealed: Bool = false
+    @State private var isLiteralRevealed: Bool = false
     @State private var parsedInputText: String = ""
     @State private var autoParseTask: Task<Void, Never>?
     @State private var studySession: StudySession?
@@ -369,32 +370,35 @@ struct ContentView: View {
         }
     }
 
-    /// The literal (grammar-following) translation captioned "Literal" above the natural
-    /// translation captioned "Natural". The literal block is omitted when empty (e.g. the
-    /// model didn't return one, or a sentence saved before this feature was reloaded).
     @ViewBuilder
     private var translationBlock: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if !literalTranslation.isEmpty {
-                labeledTranslation("Literal", literalTranslation)
-            }
-            labeledTranslation("Natural", englishTranslation)
-        }
-    }
-
-    @ViewBuilder
-    private func labeledTranslation(_ label: String, _ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(0.6)
-                .foregroundStyle(.tertiary)
-            Text(text)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(englishTranslation)
                 .font(.title2)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !literalTranslation.isEmpty {
+                if isLiteralRevealed {
+                    Text(literalTranslation)
+                        .font(.title3)
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                } else {
+                    Button("Show literal translation") {
+                        withAnimation(.smooth(duration: 0.3)) {
+                            isLiteralRevealed = true
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
         }
     }
 
@@ -662,6 +666,7 @@ struct ContentView: View {
         parsedInputText = sentence.text
         inputText = sentence.text
         isTranslationRevealed = false
+        isLiteralRevealed = false
         showingBreakdown = false
         breakdown = nil
         breakdownError = nil
@@ -688,6 +693,7 @@ struct ContentView: View {
         breakdownError = nil
         showingBreakdown = false
         isTranslationRevealed = false
+        isLiteralRevealed = false
         parsedInputText = ""
         isLoadingDefinitions = false
         isLoadingBreakdown = false
@@ -707,6 +713,7 @@ struct ContentView: View {
             definitionsError = nil
             showingBreakdown = false
             isTranslationRevealed = false
+            isLiteralRevealed = false
             parsedInputText = ""
         }
 
