@@ -22,3 +22,12 @@ Package.resolved
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Local Claude Code settings (may contain personal permission strings)
+.claude/
+
+# Secrets & signing material — never commit these
+.env
+*.p12
+*.cer
+*.mobileprovision
