@@ -1,18 +1,43 @@
 # Nihongo Pro
 
-A personal Japanese-study app for **iPad and iPhone**. Paste a Japanese sentence — or a few short ones, like a manga speech bubble — and see it back instantly: tap any word for its meaning, try to understand it yourself, then tap **Show translation** to reveal the natural English when you're ready. Toggle **furigana** on top of the kanji whenever you need a reading hint.
+A Japanese-study app for **iPad and iPhone**. Paste a Japanese sentence — or a few short ones, like a manga speech bubble — and see it back instantly: tap any word for its meaning, try to understand it yourself, then tap **Show translation** to reveal the natural English when you're ready. Toggle **furigana** on top of the kanji whenever you need a reading hint.
 
-Translation and furigana are powered by your choice of **Claude** (Anthropic's Messages API) or **ChatGPT** (OpenAI's Chat Completions API, `gpt-4.1`) — switch providers in Settings. Your API key is stored in the iOS Keychain on-device — it never leaves the device except to call the provider you've selected (`api.anthropic.com` or `api.openai.com`).
+Translation and furigana are powered by your choice of **Claude** (Anthropic) or **ChatGPT** (OpenAI) using your own API key — see [API keys](#api-keys) below. Keys are stored in the device Keychain and never leave the device except to call the provider you've selected.
 
-The app is universal: on iPad it keeps the full-width layout; on iPhone (portrait) it adapts — navigation collapses into a **•••** toolbar menu (the furigana and reading-drill toggles stay visible), the action buttons stack vertically, and the Progress grids reflow to two columns. On iPhone you can dismiss the software keyboard with the **Done** button above it or by dragging the sentence area down, so it doesn't hog the screen.
+> **Source-available, not open source:** you're free to read, learn from, fork, modify, and build this app for your own personal use — but commercial use and app-store distribution are not permitted. See [License](#license).
+
+## Screenshots
+
+| Parsed sentence — furigana & knowledge markup | Word definition |
+| :---: | :---: |
+| ![Main screen with a parsed sentence, furigana, and knowledge markup](docs/screenshots/main-sentence.png) | ![Word definition sheet with reading, definition, and familiarity rating](docs/screenshots/word-definition.png) |
+
+| Kanji detail — animated stroke order | Progress |
+| :---: | :---: |
+| ![Kanji detail sheet with animated stroke order](docs/screenshots/kanji-detail.png) | ![Progress sheet with familiarity distribution and most-seen lists](docs/screenshots/progress.png) |
+
+## Features
+
+- **Study-first flow** — the Japanese renders first; the English hides behind a **Show translation** button, with an optional **literal, grammar-following translation** one more tap away.
+- **Tap-to-define** — tap any word for its kana reading and a contextual English definition; tap any kanji inside that sheet for meanings, on'yomi/kun'yomi, a memorable note, and an **animated stroke-order diagram** ([KanjiVG](https://kanjivg.tagaini.net) data).
+- **Toggleable furigana** — off by default so you practice reading unaided; words and kanji you've marked Known stay un-furigana'd even when it's on.
+- **Familiarity levels & knowledge markup** — rate every word and kanji Unknown / Familiar / Known; the sentence display color-codes what you know, live (green Known, amber Familiar), including in drill mode.
+- **Reading drill mode** — hides all furigana and turns each word into a tap-to-reveal reading quiz.
+- **Breakdown view** — a full study view per sentence: Vocabulary, Grammar, Sentence structure, and Notes.
+- **Spoken Japanese** — on-device TTS, or an optional [Azure Speech](https://portal.azure.com) neural voice (bring your own key; the free tier vastly covers personal study). Tricky rare compounds are spoken from their analyzed reading so they're pronounced right; everything else stays natural kanji for good prosody.
+- **Saved sentences** — bookmark any parsed sentence with its full parse baked in; reopens instantly and offline.
+- **Progress & streaks** — exposure counts for every word and kanji, familiarity distributions, top-25 most-seen lists, a day streak, and a last-14-days study chart. One-tap JSON export of everything as a backup.
+- **Pomodoro study timer** — a single 25-minute work / 5-minute break cycle with a ticking toolbar pill and a hard-to-miss chime.
+- **iCloud sync** — progress syncs between your iPad and iPhone via CloudKit (no server); counts merge additively so nothing is lost studying offline on both.
+- **External dictionary handoff** — jump any word or kanji into the [Nihongo](https://apps.apple.com/us/app/nihongo-japanese-dictionary/id881697245) app or [Jisho.org](https://jisho.org).
+- **No third-party dependencies** — pure SwiftUI + system frameworks.
 
 ## Requirements
 
 - Xcode 26 or newer
 - An iPad or iPhone (or simulator) running iPadOS / iOS 26 or newer
-- An [Anthropic API key](https://console.anthropic.com/) and/or an [OpenAI API key](https://platform.openai.com/api-keys) (pay-as-you-go; sentence translations cost a fraction of a cent). You only need a key for the provider you select.
+- An [Anthropic API key](https://console.anthropic.com/) **or** an [OpenAI API key](https://platform.openai.com/api-keys) — see [API keys](#api-keys)
 - An Apple ID for code signing. A free personal team builds and runs the app, but **iCloud sync requires a paid Apple Developer Program membership** (the iCloud/CloudKit capability isn't available on free teams). Without it, the app still works fully — just per-device with no sync.
-- For iCloud sync: both devices signed into the **same iCloud account**. (Before any TestFlight/App Store build, promote the CloudKit schema from Development to Production in the CloudKit Dashboard.)
 
 ## Build & run
 
@@ -22,28 +47,35 @@ The app is universal: on iPad it keeps the full-width layout; on iPhone (portrai
    cd nihongo-pro
    open NihongoPro.xcodeproj
    ```
-2. Select the **NihongoPro** target → **Signing & Capabilities** → pick your **Team**.
-3. Choose a destination — an iPad (e.g. iPad Pro 13") or an iPhone (e.g. iPhone 16 Pro Max) running OS 26 — and press **Run** (⌘R).
+2. Select the **NihongoPro** target → **Signing & Capabilities** → pick your **Team**. (No team is committed in the project — you must select your own or the build will fail with a signing error.)
+3. Choose a destination — an iPad (e.g. iPad Pro 13″) or an iPhone running OS 26 — and press **Run** (⌘R).
 
-## First launch
+**If you fork this for your own use:** change the bundle identifier (`com.terrydonaghe.NihongoPro`) to your own, and — if you want iCloud sync — the CloudKit container identifier in `NihongoPro/NihongoPro.entitlements` to match (`iCloud.<your bundle id>`). Both devices must be signed into the same iCloud account for sync; if you're signed out of iCloud, the app runs fully on local data.
 
-The Settings sheet appears automatically. Paste your Anthropic API key (starts with `sk-ant-…`) and tap **Save**. The key is written to the iOS Keychain. You can change or remove it any time via the gear icon in the top-right.
+## API keys
 
-**Choosing an AI provider:** the **AI Provider** picker at the top of Settings switches all AI calls (translations, definitions, kanji info, breakdowns) between **Claude** and **ChatGPT**. Claude uses your Anthropic key; ChatGPT uses your OpenAI key (entered in the *OpenAI API Key* section, `sk-…`). Set the key for whichever provider you pick. Claude is the default.
+The app is bring-your-own-key. All keys are entered in-app (Settings, gear icon), stored in the iOS Keychain on-device, and sent only to their respective service.
+
+| Key | Required? | Where to get it | Cost |
+| --- | --- | --- | --- |
+| **Anthropic** (Claude) | One of these two | [console.anthropic.com](https://console.anthropic.com/) → API Keys | Pay-as-you-go. A sentence parse costs a fraction of a cent; heavy daily study is pennies per day. |
+| **OpenAI** (ChatGPT) | One of these two | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | Comparable pay-as-you-go pricing. |
+| **Azure Speech** | Optional (premium voice) | [portal.azure.com](https://portal.azure.com) → create a *Speech service* resource, copy a key + region (e.g. `westus2`) | Free tier: 500,000 characters/month — vastly more than personal study uses. |
+
+You only need a key for the AI provider you select — the **AI Provider** picker at the top of Settings switches all AI calls (translations, definitions, kanji info, breakdowns) between **Claude** (default) and **ChatGPT**. Both Anthropic and OpenAI require adding a small prepaid credit balance to a developer account; either works with just a few dollars loaded.
+
+On first launch the Settings sheet appears automatically — paste your Anthropic key (starts with `sk-ant-…`) and tap **Save**, or enter an OpenAI key in its own section and switch the provider. You can change or remove keys any time via the gear icon.
 
 ## Using it
 
-1. Paste some Japanese into the text box at the bottom — one sentence or a few short ones, like a manga speech bubble. Input is limited to 200 characters; a quiet running counter appears under the box once you pass 150, and anything over the limit blocks the auto-parse and shows a warning with the current count.
-2. About a second after you stop typing/pasting, the sentence renders at the top alongside a speaker button. Tap the speaker to hear the Japanese (or flip on **Read sentence aloud automatically** in Settings to have it play as soon as the result appears — off by default). A brief *Loading word definitions…* indicator runs while per-word definitions load in the background; once they arrive, tappable words become underlined. Furigana is off by default — tap the **book icon** in the top-right toolbar to flip on hiragana readings above the kanji (the setting is remembered across launches; Known words you've graduated will still hide their furigana).
-3. **Tap any underlined word** in the Japanese sentence to open a definition sheet with its kana reading and an English meaning. (Punctuation is unmarked and not tappable.) Tap the speaker icon inside the sheet to hear just that word pronounced. Inside that sheet, the word's kanji characters appear underlined in the accent color — tap any kanji to drill into a new sheet showing its meaning, on'yomi/kun'yomi readings, a short note, and an animated stroke order diagram. Drag the sheet down or tap *Done* to dismiss.
-4. Try to understand the sentence on your own. Once the Japanese has rendered, a **Show translation** button appears at the bottom — tap it when you're ready to reveal the natural English below. A small **Show literal translation** button appears under it — tap that if you also want a grammar-following rendering (topic first, verb last) that shows *how* the Japanese is built.
-5. Tap **Breakdown** (appears after you reveal the translation) to expand into a full study view: the translation, then Vocabulary, Grammar, Sentence structure, and a Notes paragraph at the bottom. The button disappears once you're in the breakdown — paste a new sentence to start over.
-6. Tap **Clear** (bottom left) to wipe the input, translation, and breakdown so you can paste a fresh sentence. Audio playback is stopped if it's still running.
-7. Tap the **bookmark** next to the speaker on a parsed sentence to save it. Saved sentences are kept on-device with their full parse (furigana + definitions), so they reopen instantly and offline. Tap the **books icon** in the toolbar to browse your **Saved sentences** — tap one to reload it into the main screen, or swipe to delete.
-8. Tap the **graduation-cap icon** in the toolbar to enter **reading drill** mode: all furigana is hidden, and tapping a word reveals just its reading inline (tap again to hide). It's a fast self-quiz on readings without opening the full definition modal. Tap the icon again to leave drill mode and return to normal tap-to-define.
-9. Tap the **chart-bar icon** in the top-right to open the **Progress** sheet — at-a-glance counts of unique words and kanji you've encountered, how many you've marked Known, a familiarity distribution bar for each, an **Activity** card with your current day streak / completed study sessions / days studied / today's count plus a last-14-days study-sessions bar chart, and your top 25 most-seen kanji and words. Every row is tappable to open the same word/kanji modal you'd get from a sentence. The **share icon** (top-left of the sheet) exports all your progress — frequencies, familiarity levels, daily activity, study sessions, and saved sentences — as a single JSON file you can AirDrop or save to Files as a backup.
-10. To change which voice speaks or the playback speed, tap the gear icon and use the **Voice Engine** section. The **Engine** picker chooses between **On-device** and **Azure**, and *Play Sample* previews whichever is selected. The **Rate** setting (Natural / 85% / 65%) applies to both. The on-device voice itself is picked in the **On-device Voice** section just below; for better-quality on-device voices, download enhanced/premium variants in iOS/iPadOS *Settings → Accessibility → Spoken Content → Voices → Japanese*, then **fully quit Nihongo Pro and reopen it** — new voices won't show up in the picker until the app process restarts.
-11. For a more capable, very reliable voice, set the engine to **Azure** and use the **Premium Voice (Azure)** section: paste your [Azure Speech](https://portal.azure.com) key and region (e.g. `westus2`), then **Load Japanese voices** and pick one. Azure locks the voice to Japanese and uses a real Japanese dictionary, so kanji readings, the small っ, and numbers come out right far more often than with auto-detecting engines. Some voices also offer **speaking styles** (cheerful, newscast…) — when the selected voice supports them, a **Style** picker appears. Azure's **free tier covers 500,000 characters/month** — vastly more than personal study uses — so in practice it costs nothing. Audio is cached on-device, and the app falls back to the on-device voice automatically when the engine isn't Azure, the key/region is missing, or a request fails.
+1. Paste some Japanese into the text box at the bottom — one sentence or a few short ones, like a manga speech bubble. Input is limited to 200 characters; a quiet running counter appears under the box once you pass 150.
+2. About a second after you stop typing, the sentence renders at the top alongside a speaker button. Tap the speaker to hear the Japanese (or flip on **Read sentence aloud automatically** in Settings — off by default). Definitions load in a second background pass; once they arrive, words become underlined and tappable. Furigana is off by default — the **book icon** in the toolbar toggles hiragana readings above the kanji.
+3. **Tap any underlined word** for its kana reading and English meaning, with a speaker button for just that word. Inside that sheet, tap any kanji to drill into meanings, readings, a note, and an animated stroke-order diagram. Both sheets have **Look up in Nihongo / Jisho** handoff buttons and an Unknown / Familiar / Known rating control.
+4. Try to understand the sentence yourself, then tap **Show translation** to reveal the natural English. A small **Show literal translation** button under it reveals a grammar-following rendering (topic first, verb last) that shows *how* the Japanese is built.
+5. Tap **Breakdown** (appears after the reveal) for the full study view: translation, Vocabulary, Grammar, Sentence structure, and Notes.
+6. Tap the **bookmark** on the sentence card to save it with its full parse; the **books icon** in the toolbar opens your library — tap to reload, swipe to delete. **Clear** (bottom left) wipes everything for a fresh sentence.
+7. The **graduation-cap icon** enters reading-drill mode: furigana hidden, tap a word to reveal just its reading. The **chart-bar icon** opens the **Progress** sheet (stats, streaks, top-seen lists, JSON export via the share icon). **Start study** kicks off a 25-minute pomodoro.
+8. Voice options live in Settings → **Voice Engine**: On-device vs Azure, playback rate (Natural / 85% / 65%), and Play Sample. For better on-device voices, download enhanced/premium Japanese voices in iOS *Settings → Accessibility → Spoken Content → Voices → Japanese*, then fully quit and reopen the app. For the Azure engine, paste your key + region, load the Japanese voice list, and pick one (some voices offer speaking styles); audio is cached on-device and the app falls back to the on-device voice automatically if Azure is unavailable.
 
 Example input:
 ```
@@ -56,7 +88,7 @@ Example output:
    今日 は 良 い 天気 ですね。
 ```
 
-…and then, after you tap **Show translation**, the English appears below:
+…and then, after you tap **Show translation**:
 
 ```
    ─────────────────────────────
@@ -71,33 +103,7 @@ Example output:
    As for today, (it) is good weather, isn't it?
 ```
 
-## Features
-
-- **Study-first flow** — paste a sentence and the Japanese appears automatically after a short pause. The English translation stays hidden behind a **Show translation** button so you can attempt the sentence yourself first.
-- **Literal translation on demand** — after revealing the translation, a small **Show literal translation** button reveals a second rendering that follows the Japanese grammar and word order (topic first, verb last, particles surfaced as readable English) — a bridge for learning *how* the sentence is built, not just what it means. It comes from the same parse (no extra wait) and is saved alongside bookmarked sentences.
-- **Toggleable furigana** — off by default so you can practice reading the kanji unaided. Tap the book icon in the toolbar to flip hiragana readings on above each kanji segment, with kanji compounds kept together. The setting persists across launches. Words and kanji you've marked Known stay un-furigana'd even when the toggle is on, so graduated items don't clutter the reading.
-- **Tap any underlined word** in the Japanese display to see its kana reading and a contextual English definition in a bottom sheet, with a speaker button to hear just that word. (Definitions are fetched in a second background pass — words become underlined and tappable a moment after the sentence appears.)
-- **Tap a kanji** inside the word panel — each kanji in the big word header is tinted by your familiarity rating (green Known, amber Familiar, indigo unrated), same color language as the sentence display — to drill into a per-character view: meaning, on'yomi/kun'yomi readings, a memorable note, and an animated stroke order diagram (stroke data from [KanjiVG](https://kanjivg.tagaini.net), CC BY-SA 3.0, fetched on demand and cached locally).
-- **Persistent caching** of word definitions and per-kanji info on-device — once Claude has explained a word or kanji once, future appearances are instant (and free). Polysemous words (走る "to run" vs "to rush", 開く "to open" vs "to bloom") are detected by Claude on each fetch and deliberately *not* cached, so you always get a context-appropriate definition for them. Cache lives in the app's Application Support directory so it survives restarts.
-- **Exposure counters** — every time you translate a sentence, each word's and each kanji's appearance is recorded on-device. Tapping a word shows "Seen N times" in the top-left of its modal; tapping a kanji shows it centered under the big glyph. Counts persist across app restarts.
-- **Progress page** — a chart-bar icon in the toolbar opens a stats sheet summarising your study so far: total unique words and kanji you've been exposed to, how many you've marked Known, a stacked familiarity bar (Unknown / Familiar / Known) for each, and your top 25 most-seen kanji and words ranked by exposure count. Each row in the top-seen lists is tappable to reopen the standard word or kanji modal, so the Progress page is also a fast jump-to-anything browser.
-- **External dictionary handoff** — every word and kanji modal includes two small lookup buttons:
-  - *Look up in Nihongo* — opens the word or kanji directly in [Nihongo - Japanese Dictionary](https://apps.apple.com/us/app/nihongo-japanese-dictionary/id881697245) (if installed) via universal link, or falls back to the web dictionary page otherwise. Useful for richer definitions, example sentences, and flashcard export.
-  - *Look up in Jisho* — opens the word or kanji in [Jisho.org](https://jisho.org) in Safari. Kanji links jump straight to the kanji detail page (readings, components, stroke order) via Jisho's `#kanji` filter.
-- **Saved sentences & library** — bookmark any parsed sentence with the bookmark button on the sentence card; a books icon in the toolbar opens your library. Each saved sentence keeps its full parse (furigana + per-word definitions), so reopening one is instant and works offline — tap to reload it into the main screen, swipe to delete. Saved sentences persist across app restarts.
-- **Reading drill** — a graduation-cap toggle in the toolbar hides all furigana and turns each word into a tap-to-reveal reading quiz: tap to show just the reading above a word, tap again to hide. A quick way to test yourself on readings without opening the definition modal.
-- **Activity & streaks** — the Progress page tracks how many sentences you parse each day, surfacing your current day streak, total study sessions completed, total days studied, today's count, and a last-14-days study-sessions bar chart (today highlighted in vermillion). A study session counts when a 25-minute pomodoro work block finishes, so you get credit for the focused work even if you cut the break short. Your streak survives a day where you haven't studied *yet*.
-- **iCloud sync** — your progress (word/kanji exposure counts, daily activity & streaks, familiarity levels, and saved sentences) syncs automatically between your iPad and iPhone over **iCloud (CloudKit)** — no server, no account beyond your normal iCloud sign-in. Each device contributes its own slice and the app sums/merges them, so exposure counts are never lost even if you study on both devices offline; saved-sentence deletions sync too (no resurrecting). Sign in to the same iCloud account on both devices and it just works; if you're signed out, the app runs fully on local data and syncs once you sign back in. Definition caches and your API keys are intentionally *not* synced (caches regenerate for free; keys stay per-device).
-- **Export / backup** — a share button on the Progress sheet bundles everything stored on-device (word/kanji frequencies, familiarity levels, daily activity, and saved sentences) into one JSON file you can AirDrop, email, or save to Files — cheap insurance for the progress you've accumulated.
-- **Video-Study sync** — optionally **two-way sync** your known words & kanji with the companion **Video-Study** Chrome extension (for studying Japanese on Netflix). Enter your Cloudflare Worker URL and a shared secret in Settings → *Video-Study Sync*; thereafter marks (and clears) flow both ways automatically — on launch, periodically, and whenever you change a familiarity level. Newest change wins per word/kanji.
-- **Familiarity levels** — set each word and each kanji to **Unknown** (default), **Familiar** (stepping stone, no behavior change), or **Known** via a segmented control in the word and kanji modals. Words you mark Known stop showing furigana — and a word whose every kanji you've marked Known also loses its furigana, even if the word itself isn't Known. Marking a word Known does **not** mark its kanji Known (and vice versa) — the two levels are independent until you set them. Known words remain tappable in the sentence so you can demote them back if you forget. Levels persist across app restarts.
-- **Knowledge markup** — the sentence display color-codes what you know, live: each **kanji glyph** is tinted green if you've marked that kanji Known and amber if Familiar (unrated kanji stay the normal text color), and each **word's underline** takes the same green/amber based on the word's own rating (unrated words keep the indigo "tappable" underline). Always on — including in reading-drill mode, so you can aim your drilling at the words you're still learning — and it recolors instantly when you change a rating in a word or kanji modal.
-- **Pomodoro study timer** — tap **Start study** after translating a sentence to start a single 25-minute work / 5-minute break pomodoro. A pill in the top-right toolbar ticks down the time; when the 25-minute work interval ends, an alarm chime plays (repeated so it's hard to miss) and an orange break overlay locks the screen for the 5-minute break. When the break finishes the session ends automatically — it does **not** roll into another work block. Tap the close icon next to the pill to end the session early (with confirmation). The pomodoro runs alongside the main screen — the sentence, modals, and Breakdown stay fully interactive while you study.
-- **Breakdown view** — once the translation is revealed, tap Breakdown to swap to a full study breakdown of the sentence: the translation at top, then Vocabulary, Grammar, Sentence structure, and a Notes paragraph. The button disappears once you're in the breakdown — paste a new sentence to start over.
-- **Spoken Japanese** — a speaker button reads the sentence aloud any time, and an optional Settings toggle (off by default) reads it automatically as soon as the parse appears. To sound natural *and* read correctly, the sentence is spoken mostly as natural kanji, with only the genuinely tricky words (rare or technical compounds like 精米歩合 → *seimaibuai*) swapped to their exact analyzed reading — so prosody stays natural while uncommon vocabulary is still pronounced right. Tapping a single word uses the same rule — it speaks the kanji form, dropping to the exact kana reading only for those tricky flagged words. Pick your voice and playback rate (Natural / 85% / 65%) in Settings, with a Play Sample button to preview.
-- **Premium neural voice (optional)** — a **Voice Engine** picker in Settings chooses between the free on-device Apple voice and **Azure**. Microsoft [Azure Speech](https://portal.azure.com) neural voices (bring your own key + region) lock the voice to Japanese and are backed by a real Japanese dictionary, so readings, the small っ, and numbers come out right far more often than with auto-detecting engines. Some voices also expose **speaking styles** (cheerful, newscast…), surfaced as a Style picker. Azure's **free tier (500K characters/month)** comfortably covers personal study, so it's effectively free. Fetched audio is cached on-device so replays and previously-heard saved sentences play offline, and the app silently falls back to the on-device voice when Azure isn't selected, offline, or unavailable. Playback speed honors the Natural / 85% / 65% rate setting on both engines. On **iPhone**, study audio plays even when the ring/silent switch is set to silent (the app uses the `.playback` audio session there); iPad keeps its `.ambient` session. Word playback speaks the **kanji** form (which the neural voice reads accurately) rather than bare kana, so a word-final っ/つ isn't swallowed into a glottal stop; only rare compounds whose kanji genuinely mis-reads fall back to kana.
-- **Selectable** English translation (long-press to copy)
-- **In-app API-key management** via the gear icon, with Keychain storage
+The app is universal: on iPad it keeps the full-width layout; on iPhone (portrait) it adapts — navigation collapses into a **•••** toolbar menu, the action buttons stack vertically, and the Progress grids reflow to two columns. On iPhone, study audio plays even when the ring/silent switch is set to silent.
 
 ## Visual identity
 
@@ -114,6 +120,12 @@ A calm Japanese-inspired palette: deep indigo (kon-iro) for the primary accent, 
 - Stroke order SVGs from [KanjiVG](https://kanjivg.tagaini.net) (CC BY-SA 3.0), fetched on demand and cached locally
 - Custom SwiftUI `Layout` for furigana flow-wrapping
 
+There's also an optional **Video-Study sync** section in Settings — a two-way familiarity sync with a companion Chrome extension for studying Japanese on Netflix (not yet published). It no-ops silently unless you configure a relay URL and secret, so you can ignore it.
+
+## Contributing
+
+This is a personal study app built for my own daily use — feature direction is mine and there are no support guarantees, but bug reports and small focused PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and what's expected.
+
 ## Credits
 
 Stroke order data is provided by the [KanjiVG project](https://kanjivg.tagaini.net) by Ulrich Apel and contributors, released under [Creative Commons BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). This app fetches individual SVG files on demand and does not redistribute the dataset.
@@ -121,3 +133,14 @@ Stroke order data is provided by the [KanjiVG project](https://kanjivg.tagaini.n
 ## Privacy
 
 Japanese sentences you translate are sent to your selected AI provider for processing — either Anthropic (subject to [Anthropic's data-handling policies](https://www.anthropic.com/legal/privacy)) or OpenAI (subject to [OpenAI's policies](https://openai.com/policies/)). Nothing is stored on a server controlled by this app, and nothing is sent anywhere else.
+
+## License
+
+Nihongo Pro is **source-available** under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) with an additional app-store restriction. In plain English:
+
+- ✅ You may read, learn from, fork, and modify the code, and build and run the app for your own personal, noncommercial use.
+- ✅ You must keep the copyright notice and credit **Terry Donaghe** ([github.com/tad/nihongo-pro](https://github.com/tad/nihongo-pro)) in any copy or derivative.
+- ❌ You may not use it, or anything derived from it, commercially — no selling, no paid services, no monetization of any kind.
+- ❌ You may not submit it, or anything derived from it, to any app store (Apple App Store, TestFlight, Google Play, etc.) — even for free.
+
+The binding text is in [LICENSE.md](LICENSE.md). The copyright holder retains all rights, including exclusive commercial and app-store distribution rights.
