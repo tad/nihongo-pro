@@ -36,7 +36,7 @@ Translation and furigana are powered by your choice of **Claude** (Anthropic) or
 
 - Xcode 26 or newer
 - An iPad or iPhone (or simulator) running iPadOS / iOS 26 or newer
-- An [Anthropic API key](https://console.anthropic.com/) **or** an [OpenAI API key](https://platform.openai.com/api-keys) — see [API keys](#api-keys)
+- An [Anthropic API key](https://console.anthropic.com/) (an [OpenAI key](https://platform.openai.com/api-keys) works as an optional fallback provider) — see [API keys](#api-keys)
 - An Apple ID for code signing. A free personal team builds and runs the app, but **iCloud sync requires a paid Apple Developer Program membership** (the iCloud/CloudKit capability isn't available on free teams). Without it, the app still works fully — just per-device with no sync.
 
 ## Build & run
@@ -58,11 +58,13 @@ The app is bring-your-own-key. All keys are entered in-app (Settings, gear icon)
 
 | Key | Required? | Where to get it | Cost |
 | --- | --- | --- | --- |
-| **Anthropic** (Claude) | One of these two | [console.anthropic.com](https://console.anthropic.com/) → API Keys | Pay-as-you-go. A sentence parse costs a fraction of a cent; heavy daily study is pennies per day. |
-| **OpenAI** (ChatGPT) | One of these two | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | Comparable pay-as-you-go pricing. |
-| **Azure Speech** | Optional (premium voice) | [portal.azure.com](https://portal.azure.com) → create a *Speech service* resource, copy a key + region (e.g. `westus2`) | Free tier: 500,000 characters/month — vastly more than personal study uses. |
+| **Anthropic** (Claude) | Yes — the default provider | [console.anthropic.com](https://console.anthropic.com/) → API Keys | Pay-as-you-go. A sentence parse costs a fraction of a cent; heavy daily study is pennies per day. |
+| **OpenAI** (ChatGPT) | Optional — a fallback provider | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | Comparable pay-as-you-go pricing. |
+| **Azure Speech** | Optional — premium voice | [portal.azure.com](https://portal.azure.com) → create a *Speech service* resource, copy a key + region (e.g. `westus2`) | Free tier: 500,000 characters/month — vastly more than personal study uses. |
 
-You only need a key for the AI provider you select — the **AI Provider** picker at the top of Settings switches all AI calls (translations, definitions, kanji info, breakdowns) between **Claude** (default) and **ChatGPT**. Both Anthropic and OpenAI require adding a small prepaid credit balance to a developer account; either works with just a few dollars loaded.
+**OpenAI is optional.** Claude is the default provider and all the app needs is an Anthropic key. The OpenAI key exists as a fallback option: if you'd rather not use Claude (or want to switch), flip the **AI Provider** picker at the top of Settings to **ChatGPT** and all AI calls (translations, definitions, kanji info, breakdowns) route there instead. Note the switch is manual — the app doesn't automatically fail over between providers. You only need a key (and a small prepaid credit balance) for the provider you actually select.
+
+**Azure Speech is optional too.** Without it, the app speaks with the built-in on-device Apple voice — no key, no cost, works offline. Add an Azure key only if you want the premium neural voice; if Azure is ever unreachable the app automatically falls back to the on-device voice. That said, I've found Azure Speech to be the best Japanese voice for this app — it's the most accurate with kanji readings and the most natural to listen to, and the free tier makes it effectively free for personal study.
 
 On first launch the Settings sheet appears automatically — paste your Anthropic key (starts with `sk-ant-…`) and tap **Save**, or enter an OpenAI key in its own section and switch the provider. You can change or remove keys any time via the gear icon.
 
