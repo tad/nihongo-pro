@@ -142,12 +142,14 @@ struct StatsView: View {
             SummaryCard(
                 label: "Unique words",
                 value: wordCounts.count,
-                icon: "textformat"
+                icon: "textformat",
+                textIcon: "単語"
             )
             SummaryCard(
                 label: "Unique kanji",
                 value: kanjiCounts.count,
-                icon: "character"
+                icon: "character",
+                textIcon: "漢字"
             )
             SummaryCard(
                 label: "Known kanji",
@@ -374,13 +376,20 @@ private struct SummaryCard: View {
     let label: String
     let value: Int
     let icon: String
+    var textIcon: String? = nil
     var accent: Color = .accentColor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(accent)
+            if let textIcon {
+                Text(textIcon)
+                    .font(.system(.title3, design: .serif))
+                    .foregroundStyle(accent)
+            } else {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(accent)
+            }
             Text("\(value)")
                 .font(.system(size: 34, weight: .semibold, design: .rounded))
                 .contentTransition(.numericText())
