@@ -119,12 +119,12 @@ private struct WordView: View {
                 .fixedSize()
             }
         }
-        .padding(.bottom, 3)
+        .padding(.bottom, 5)
         .overlay(alignment: .bottom) {
             if underline {
-                Rectangle()
+                Capsule()
                     .fill(underlineStyle(store: store))
-                    .frame(height: 1.5)
+                    .frame(height: 3)
             }
         }
         .contentShape(Rectangle())
