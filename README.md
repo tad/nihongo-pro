@@ -19,7 +19,7 @@ Translation and furigana are powered by your choice of **Claude** (Anthropic) or
 ## Features
 
 - **Study-first flow** — the Japanese renders first; the English hides behind a **Show translation** button, with an optional **literal, grammar-following translation** one more tap away.
-- **Tap-to-define** — tap any word for its kana reading and a contextual English definition; tap any kanji inside that sheet for meanings, on'yomi/kun'yomi, a memorable note, and an **animated stroke-order diagram** ([KanjiVG](https://kanjivg.tagaini.net) data).
+- **Tap-to-define** — tap any word for its kana reading and a contextual English definition; tap any kanji inside that sheet for meanings, on'yomi/kun'yomi, its JLPT level, a memorable note, and an **animated stroke-order diagram** ([KanjiVG](https://kanjivg.tagaini.net) data).
 - **Toggleable furigana** — off by default so you practice reading unaided; words and kanji you've marked Known stay un-furigana'd even when it's on.
 - **Familiarity levels & knowledge markup** — rate every word and kanji Unknown / Familiar / Known; the sentence display color-codes what you know, live (green Known, amber Familiar), including in drill mode.
 - **Reading drill mode** — hides all furigana and turns each word into a tap-to-reveal reading quiz.

@@ -29,7 +29,10 @@ actor DefinitionCache {
 
     private init() {
         let dir = AppDataDirectory.url()
-        let kanjiURL = dir.appendingPathComponent("kanji_cache.json")
+        // v2: KanjiInfo gained the "jlpt" field. Legacy entries decode with jlpt == nil,
+        // which is indistinguishable from a genuinely list-less kanji, so bumping the
+        // filename forces a one-time re-fetch of every previously-cached kanji.
+        let kanjiURL = dir.appendingPathComponent("kanji_cache_v2.json")
         // v2: word definitions are now fetched with the pass-1 reading attached, so
         // the model romanizes/disambiguates from the authoritative reading. Bumping
         // the filename forces a one-time re-fetch of every previously-cached word
@@ -41,6 +44,7 @@ actor DefinitionCache {
         // Delete superseded definition caches once (idempotent — no-ops once gone).
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("word_cache.json"))
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("word_definitions.json"))
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent("kanji_cache.json"))
 
         if let data = try? Data(contentsOf: kanjiURL),
            let decoded = try? JSONDecoder().decode([String: KanjiInfo].self, from: data) {

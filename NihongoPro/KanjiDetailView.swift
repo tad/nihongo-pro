@@ -138,6 +138,18 @@ struct KanjiDetailView: View {
                     }
                 }
 
+                if let jlpt = info.jlpt {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("JLPT")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 86, alignment: .leading)
+                        Text("N\(jlpt)")
+                            .font(.body)
+                            .textSelection(.enabled)
+                    }
+                }
+
                 if let note = info.note, !note.isEmpty {
                     Text(note)
                         .font(.callout)

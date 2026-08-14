@@ -80,6 +80,10 @@ struct KanjiInfo: Codable {
     let onyomi: [String]
     let kunyomi: [String]
     let note: String?
+    /// JLPT level 5 (N5, easiest) through 1 (N1); nil when the kanji is not on
+    /// any list. Per the widely-used community lists — the JLPT stopped
+    /// publishing official kanji lists in 2010.
+    let jlpt: Int?
 }
 
 struct TranslationResult {
@@ -189,7 +193,7 @@ struct TranslationService {
     You are a Japanese kanji reference. The user will send a single kanji character. Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
 
     Response shape:
-    {"character":"X","meanings":["...","..."],"onyomi":["...","..."],"kunyomi":["...","..."],"note":"..."}
+    {"character":"X","meanings":["...","..."],"onyomi":["...","..."],"kunyomi":["...","..."],"note":"...","jlpt":5}
 
     Fields:
     - "character": the input kanji (echo it back).
@@ -197,11 +201,12 @@ struct TranslationService {
     - "onyomi": common on'yomi (Chinese-derived) readings in katakana. Use an empty array if none are commonly used.
     - "kunyomi": common kun'yomi (native Japanese) readings in hiragana. Use a period to mark okurigana boundaries (e.g., "た.べる"). Use an empty array if none are commonly used.
     - "note": 1-2 sentence memorable description: visual mnemonic, etymology, or common usage pattern. Use null if nothing notable.
+    - "jlpt": the kanji's JLPT level as an integer from 5 (N5, easiest) to 1 (N1, hardest), per the widely-used unofficial post-2010 JLPT kanji lists. Use null if the kanji does not appear on any JLPT list (rare kanji, name-only kanji).
 
     Example input: 天
 
     Example response:
-    {"character":"天","meanings":["heaven","sky","celestial"],"onyomi":["テン"],"kunyomi":["あめ","あま"],"note":"Pictograph of a person (大) with a flat line above representing the sky. Appears in many words about weather (天気) and the heavens."}
+    {"character":"天","meanings":["heaven","sky","celestial"],"onyomi":["テン"],"kunyomi":["あめ","あま"],"note":"Pictograph of a person (大) with a flat line above representing the sky. Appears in many words about weather (天気) and the heavens.","jlpt":5}
     """
 
     private static let breakdownSystemPrompt = """
