@@ -157,8 +157,10 @@ enum TranslationError: LocalizedError {
     /// long deliberation can consume the whole budget and the response is truncated
     /// before any text is emitted; a `refusal` looks identical from the outside.
     /// Carries `stop_reason` so the two are told apart instead of surfacing as
-    /// "couldn't parse the JSON", which is what an empty string decodes to.
-    case emptyResponse(stopReason: String?)
+    /// "couldn't parse the JSON", which is what an empty string decodes to, plus a
+    /// rendering of `stop_details` (the refusal category and explanation) so a
+    /// declined request says *why* instead of just "declined".
+    case emptyResponse(stopReason: String?, detail: String?)
 
     var errorDescription: String? {
         switch self {
@@ -172,14 +174,15 @@ enum TranslationError: LocalizedError {
             return "Couldn't read the response from the AI service."
         case .invalidResponseFormat(let detail):
             return "Couldn't parse the model's JSON response: \(detail)"
-        case .emptyResponse(let stopReason):
+        case .emptyResponse(let stopReason, let detail):
+            let suffix = detail.map { " (\($0))" } ?? ""
             switch stopReason {
             case "max_tokens":
                 return "The model used its whole budget thinking and ran out of room to answer. Try again."
             case "refusal":
-                return "The model declined to answer this one. Try again, or reword the mnemonic request."
+                return "The model declined to answer this one\(suffix). Try again, or reword the mnemonic request."
             default:
-                return "The model returned an empty response\(stopReason.map { " (\($0))" } ?? ""). Try again."
+                return "The model returned an empty response\(stopReason.map { " (\($0))" } ?? "")\(suffix). Try again."
             }
         }
     }
@@ -209,6 +212,7 @@ struct TranslationService {
     /// request bills for the thinking and returns nothing at all.
     private static let kanjiInfoMaxTokens = 32_000
     private static let anthropicVersion = "2023-06-01"
+    private static let log = Logger(subsystem: "com.terrydonaghe.NihongoPro", category: "ai")
 
     /// The currently-selected AI provider, read live from UserDefaults so a change in Settings
     /// takes effect on the next call without re-instantiating the service. Defaults to Claude.
@@ -456,15 +460,26 @@ struct TranslationService {
         if let extraInstruction {
             userMessage += "\n\n" + extraInstruction
         }
-        // An empty response is transient — thinking length varies run to run — so one
-        // retry usually turns a lost reroll into a result. Only this error is retried;
-        // a bad key or a malformed body would just fail the same way twice.
+        // An empty response gets one retry. A `max_tokens` truncation is transient —
+        // thinking length varies run to run — so the same model usually answers the
+        // second time. A `refusal` is not: the classifier is deterministic on the
+        // input, so re-asking the same model just refuses again (that is exactly
+        // what the old same-model retry did on a Fable reroll). Fable's classifiers
+        // cover more categories than Opus 5's, and the server-side `fallbacks:
+        // "default"` evidently didn't rescue the request (some categories fall back
+        // to nothing), so a refused reroll retries on the Opus fetch model instead.
+        // Only this error is retried; a bad key or a malformed body would just fail
+        // the same way twice.
         let rawText: String
         do {
             rawText = try await sendKanjiInfoMessage(userMessage: userMessage, model: model)
         } catch let error as TranslationError {
-            guard case .emptyResponse = error else { throw error }
-            rawText = try await sendKanjiInfoMessage(userMessage: userMessage, model: model)
+            guard case .emptyResponse(let stopReason, let detail) = error else { throw error }
+            let refused = stopReason == "refusal"
+            let retryModel = (refused && model != Self.kanjiInfoModel) ? Self.kanjiInfoModel : model
+            let why = (stopReason ?? "no stop_reason") + (detail.map { "; \($0)" } ?? "")
+            Self.log.warning("Empty kanji-info response from \(model, privacy: .public) (\(why, privacy: .public)) — retrying on \(retryModel, privacy: .public)")
+            rawText = try await sendKanjiInfoMessage(userMessage: userMessage, model: retryModel)
         }
         let jsonText = Self.extractJSON(from: rawText)
         guard let jsonData = jsonText.data(using: .utf8) else {
@@ -644,7 +659,7 @@ struct TranslationService {
         // emitted, and on any path a refusal returns 200 with no text. Report it as
         // itself so the message is useful and the caller knows it's worth retrying.
         guard !text.isEmpty else {
-            throw TranslationError.emptyResponse(stopReason: decoded.stopReason)
+            throw TranslationError.emptyResponse(stopReason: decoded.stopReason, detail: decoded.stopDetails?.summary)
         }
         return text
     }
@@ -711,7 +726,7 @@ struct TranslationService {
         // emitted, and on any path a refusal returns 200 with no text. Report it as
         // itself so the message is useful and the caller knows it's worth retrying.
         guard !text.isEmpty else {
-            throw TranslationError.emptyResponse(stopReason: decoded.stopReason)
+            throw TranslationError.emptyResponse(stopReason: decoded.stopReason, detail: decoded.stopDetails?.summary)
         }
         return text
     }
@@ -895,15 +910,43 @@ private struct MessagesResponse: Decodable {
     /// "end_turn", "max_tokens", "refusal", … — the only way to tell a truncated
     /// response from a declined one, since both arrive as 200 with no text.
     let stopReason: String?
+    /// Populated only when `stop_reason` is "refusal": the policy category
+    /// ("cyber", "bio", "reasoning_extraction", …, or null), an optional
+    /// explanation, and — when the server-side fallback couldn't run because the
+    /// fallback model was rate-limited — the model it suggests retrying on. Purely
+    /// informational; branch on `stopReason`, never on this.
+    let stopDetails: StopDetails?
 
     struct ContentBlock: Decodable {
         let type: String
         let text: String?
     }
 
+    struct StopDetails: Decodable {
+        let category: String?
+        let explanation: String?
+        let recommendedModel: String?
+
+        enum CodingKeys: String, CodingKey {
+            case category, explanation
+            case recommendedModel = "recommended_model"
+        }
+
+        /// One human-readable line for the error banner and the log, e.g.
+        /// "category: cyber — <explanation>; recommended model: claude-opus-4-8".
+        var summary: String? {
+            var parts: [String] = []
+            if let category { parts.append("category: \(category)") }
+            if let explanation, !explanation.isEmpty { parts.append(explanation) }
+            if let recommendedModel { parts.append("recommended model: \(recommendedModel)") }
+            return parts.isEmpty ? nil : parts.joined(separator: " — ")
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
         case content
         case stopReason = "stop_reason"
+        case stopDetails = "stop_details"
     }
 }
 
