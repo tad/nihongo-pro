@@ -17,6 +17,14 @@ struct KanjiDetailView: View {
     @State private var animationKey: Int = 0
     @State private var seenCount: Int = 0
 
+    @State private var isRegenerating: Bool = false
+    @State private var regenerateError: String?
+
+    @State private var isEditingMnemonic: Bool = false
+    /// Set when "New mnemonic" is tapped on a pinned entry — a reroll would discard
+    /// the user's own words, so it waits for confirmation.
+    @State private var confirmingReroll: Bool = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -66,6 +74,19 @@ struct KanjiDetailView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+        .sheet(isPresented: $isEditingMnemonic) {
+            MnemonicEditorView(kanji: kanji, translator: translator) { updated in
+                // Keep the card behind the sheet in step with what was just saved.
+                info = updated
+            }
+        }
+        .confirmationDialog("Replace your pinned mnemonic?",
+                            isPresented: $confirmingReroll, titleVisibility: .visible) {
+            Button("Replace it", role: .destructive) { regenerateMnemonic() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This mnemonic is pinned. A new one from the model will take its place.")
         }
         .task {
             async let infoTask: Void = loadInfo()
@@ -150,10 +171,79 @@ struct KanjiDetailView: View {
                     }
                 }
 
-                if let note = info.note, !note.isEmpty {
+                if let example = info.example {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Example")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 86, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(example.word)
+                                .font(.system(.title3, design: .serif))
+                                .textSelection(.enabled)
+                            Text("\(example.reading) · \(example.meaning)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+
+                if let components = info.components, !components.isEmpty {
+                    Text(components.joined(separator: "  ·  "))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let mnemonic = info.mnemonic, !mnemonic.isEmpty {
+                    Text(mnemonic)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                } else if let note = info.note, !note.isEmpty {
+                    // Pre-mnemonic cache entries still carry the old memorable note.
                     Text(note)
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if info.pinned == true {
+                    Label("Pinned", systemImage: "pin.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                // Outside the mnemonic check on purpose: a legacy note-only entry
+                // still deserves a way to get a real mnemonic written for it.
+                if isRegenerating {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Writing a new mnemonic…")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                } else {
+                    HStack(spacing: 16) {
+                        Button("New mnemonic") {
+                            if info.pinned == true {
+                                confirmingReroll = true
+                            } else {
+                                regenerateMnemonic()
+                            }
+                        }
+                        Button("Edit mnemonic…") { isEditingMnemonic = true }
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.tertiary)
+                }
+                if let regenerateError {
+                    Text(regenerateError)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -209,11 +299,29 @@ struct KanjiDetailView: View {
 
     private func loadInfo() async {
         do {
-            info = try await translator.fetchKanjiInfo(kanji: kanji)
+            // Goes through the prefetcher so an in-flight background batch is
+            // awaited instead of duplicated; cached or uncached-and-idle behave
+            // exactly like translator.fetchKanjiInfo.
+            info = try await KanjiInfoPrefetcher.shared.ensure(kanji)
         } catch {
             infoError = (error as? TranslationError)?.errorDescription ?? error.localizedDescription
         }
         isLoadingInfo = false
+    }
+
+    /// Rerolls a mnemonic the user found unhelpful. The refetched entry replaces
+    /// the cached one, so the new story sticks.
+    private func regenerateMnemonic() {
+        regenerateError = nil
+        isRegenerating = true
+        Task {
+            do {
+                info = try await translator.regenerateKanjiInfo(kanji: kanji)
+            } catch {
+                regenerateError = (error as? TranslationError)?.errorDescription ?? error.localizedDescription
+            }
+            isRegenerating = false
+        }
     }
 
     private func loadSVG() async {

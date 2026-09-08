@@ -1,4 +1,23 @@
 import Foundation
+import Observation
+import os
+
+/// Counts in-flight AI requests — all four call types, both providers, background
+/// prefetch batches included — so the toolbar can show a "talking to the AI"
+/// indicator. Incremented/decremented at the two send choke points
+/// (`sendMessage`, `sendKanjiInfoMessage`).
+@MainActor
+@Observable
+final class AIActivity {
+    static let shared = AIActivity()
+    private init() {}
+
+    private(set) var activeRequests = 0
+    var isActive: Bool { activeRequests > 0 }
+
+    func begin() { activeRequests += 1 }
+    func end() { activeRequests = max(0, activeRequests - 1) }
+}
 
 /// Which AI service powers the four Claude/ChatGPT calls (translate, definitions, kanji info,
 /// breakdown). Chosen in Settings; stored in UserDefaults under `aiProvider`. The whole app
@@ -75,15 +94,49 @@ extension Array where Element == Word {
 }
 
 struct KanjiInfo: Codable {
+    /// A short vocabulary word that uses the kanji, for context.
+    struct Example: Codable {
+        let word: String
+        let reading: String
+        let meaning: String
+    }
+
     let character: String
     let meanings: [String]
     let onyomi: [String]
     let kunyomi: [String]
+    /// No longer requested — superseded by `mnemonic`. Kept so any entry that
+    /// still carries one decodes.
     let note: String?
     /// JLPT level 5 (N5, easiest) through 1 (N1); nil when the kanji is not on
     /// any list. Per the widely-used community lists — the JLPT stopped
     /// publishing official kanji lists in 2010.
     let jlpt: Int?
+    /// Visible parts of the kanji with a learner keyword each, e.g. "尸 flag".
+    /// Filled in before `mnemonic` so the story can only use real components.
+    /// `var` so the mnemonic editor can record the parts the user hand-picked.
+    var components: [String]?
+    /// Component-based story linking the kanji's shape to its meaning.
+    /// `var` so the mnemonic editor can save a story the user wrote themselves.
+    var mnemonic: String?
+    let example: Example?
+    /// When this entry was fetched from the model. Drives the newest-wins merge of
+    /// the CloudKit-shared kanji-info cache (shared with the kanji-study app) so a
+    /// regenerated mnemonic replaces older entries everywhere. Nil = legacy entry,
+    /// which loses to any timestamped one.
+    var fetchedAt: Date?
+    /// True when the mnemonic was written by the user or generated from components
+    /// they hand-picked in the mnemonic editor. Pinned entries are never replaced by
+    /// automatic batch fetches, and `DefinitionCache.shouldAdopt` only lets a *pinned*
+    /// newer entry replace them — so model output never silently overwrites the
+    /// user's own words, here or on any other device.
+    ///
+    /// Optional on purpose: absent on the wire means "an ordinary fetched entry", so
+    /// the JSON shape is unchanged for everything else and older installs (and older
+    /// builds of the kanji-study app) decode it fine. The kanji-study app has the
+    /// identical field and honours it on its own merge, which is what makes pinning
+    /// survive a round-trip through either app.
+    var pinned: Bool?
 }
 
 struct TranslationResult {
@@ -100,6 +153,12 @@ enum TranslationError: LocalizedError {
     case apiError(status: Int, message: String)
     case decodingFailed
     case invalidResponseFormat(String)
+    /// HTTP 200 with no `text` block. Thinking is billed against `max_tokens`, so a
+    /// long deliberation can consume the whole budget and the response is truncated
+    /// before any text is emitted; a `refusal` looks identical from the outside.
+    /// Carries `stop_reason` so the two are told apart instead of surfacing as
+    /// "couldn't parse the JSON", which is what an empty string decodes to.
+    case emptyResponse(stopReason: String?)
 
     var errorDescription: String? {
         switch self {
@@ -113,6 +172,15 @@ enum TranslationError: LocalizedError {
             return "Couldn't read the response from the AI service."
         case .invalidResponseFormat(let detail):
             return "Couldn't parse the model's JSON response: \(detail)"
+        case .emptyResponse(let stopReason):
+            switch stopReason {
+            case "max_tokens":
+                return "The model used its whole budget thinking and ran out of room to answer. Try again."
+            case "refusal":
+                return "The model declined to answer this one. Try again, or reword the mnemonic request."
+            default:
+                return "The model returned an empty response\(stopReason.map { " (\($0))" } ?? ""). Try again."
+            }
         }
     }
 }
@@ -122,6 +190,24 @@ struct TranslationService {
     private static let openAIEndpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
     private static let model = "claude-sonnet-4-6"
     private static let openAIModel = "gpt-4.1"
+    /// Kanji info (mnemonics) always uses Opus 5 with high-effort thinking, regardless
+    /// of the AI-provider switch — Terry chose mnemonic quality over latency, matching
+    /// the kanji-study app. Requires the Anthropic key even when the provider is OpenAI.
+    private static let kanjiInfoModel = "claude-opus-5"
+    /// "New mnemonic" rerolls go one tier higher — Fable (Mythos-class, above Opus).
+    /// Some Opus mnemonics are still weak, and a reroll is the user explicitly
+    /// saying "do better", so the single-kanji retry is worth the top model.
+    private static let mnemonicRerollModel = "claude-fable-5"
+    /// Opus 5 with thinking can take a couple of minutes; the default URLRequest
+    /// timeout is 60 s, which is not enough.
+    private static let kanjiInfoTimeout: TimeInterval = 300
+    /// `max_tokens` covers thinking AND the answer. The answer here is tiny (a few
+    /// hundred tokens per kanji); the budget exists for the thinking. At 16000 a
+    /// constrained reroll could spend the lot deliberating and get truncated before
+    /// writing anything, which surfaced as a bogus "couldn't parse the JSON". This is
+    /// a ceiling, not a charge — unused headroom costs nothing, while a truncated
+    /// request bills for the thinking and returns nothing at all.
+    private static let kanjiInfoMaxTokens = 32_000
     private static let anthropicVersion = "2023-06-01"
 
     /// The currently-selected AI provider, read live from UserDefaults so a change in Settings
@@ -190,23 +276,28 @@ struct TranslationService {
     """
 
     private static let kanjiInfoSystemPrompt = """
-    You are a Japanese kanji reference. The user will send a single kanji character. Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
+    You are a Japanese kanji reference for an adult learner. The user will send a JSON array of kanji characters (up to 8). Return exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary), containing one entry per input kanji in the same order.
 
     Response shape:
-    {"character":"X","meanings":["...","..."],"onyomi":["...","..."],"kunyomi":["...","..."],"note":"...","jlpt":5}
+    {"kanji":[{"character":"X","meanings":["...","..."],"onyomi":["...","..."],"kunyomi":["...","..."],"jlpt":5,"components":["...","..."],"mnemonic":"...","example":{"word":"...","reading":"...","meaning":"..."}}]}
 
-    Fields:
+    Fields for each entry:
     - "character": the input kanji (echo it back).
     - "meanings": 1-3 short English meanings (e.g., ["heaven","sky"]).
     - "onyomi": common on'yomi (Chinese-derived) readings in katakana. Use an empty array if none are commonly used.
     - "kunyomi": common kun'yomi (native Japanese) readings in hiragana. Use a period to mark okurigana boundaries (e.g., "た.べる"). Use an empty array if none are commonly used.
-    - "note": 1-2 sentence memorable description: visual mnemonic, etymology, or common usage pattern. Use null if nothing notable.
     - "jlpt": the kanji's JLPT level as an integer from 5 (N5, easiest) to 1 (N1, hardest), per the widely-used unofficial post-2010 JLPT kanji lists. Use null if the kanji does not appear on any JLPT list (rare kanji, name-only kanji).
+    - "components": the parts a learner can actually SEE in the standard printed form, top-to-bottom / left-to-right, each as "<part> <keyword>" (e.g. "尸 flag", "衣 clothes", "亻 person"). 1-4 entries. Use only real, visible parts — never a part that merely resembles or historically derives from something that is not in the glyph. Use the widely-used learner keyword for each part. For a simple pictograph, one entry naming the kanji itself is fine.
+    - "mnemonic": one or two sentences (max ~40 words) that help the learner recall the kanji's PRIMARY MEANING from its shape. Rules: (1) use ONLY the parts listed in "components", and every component you mention must be written as its character; (2) build a cause-and-effect scene where those parts together PRODUCE the meaning — the meaning must be the punchline, not a label bolted on; (3) be concrete and visual; no vague phrases like "a sweeping motion", "a component suggesting", "something like"; (4) do not merely restate the meaning or retell an etymology unless that etymology is itself a vivid, coherent picture. If the standard decomposition is genuinely unhelpful, it is acceptable to use a simpler visual reading of the overall shape, but say so plainly.
+    - "example": one common, useful vocabulary word containing the kanji, as {"word","reading","meaning"}: "word" in kanji/kana as normally written, "reading" entirely in hiragana, "meaning" a short English gloss. Prefer an everyday word a learner is likely to meet; the target kanji's own reading in that word should be one of the listed readings when possible.
 
-    Example input: 天
+    A bad mnemonic (do not do this) for 展: "A corpse 尸 over a field 田 with a sweeping motion below — imagine a scroll being unrolled across a field." It names a part that is not in the glyph (田), hedges ("a sweeping motion"), and the parts never lead to the meaning.
+    A good mnemonic for 展: components ["尸 flag", "廿 twenty", "衣 clothes"]; "Under a flag 尸, twenty 廿 sets of clothes 衣 are spread out on a long table for everyone to see — a display, unfolded and expanded."
+
+    Example input: ["天","窓"]
 
     Example response:
-    {"character":"天","meanings":["heaven","sky","celestial"],"onyomi":["テン"],"kunyomi":["あめ","あま"],"note":"Pictograph of a person (大) with a flat line above representing the sky. Appears in many words about weather (天気) and the heavens.","jlpt":5}
+    {"kanji":[{"character":"天","meanings":["heaven","sky","celestial"],"onyomi":["テン"],"kunyomi":["あめ","あま"],"jlpt":5,"components":["一 one","大 big"],"mnemonic":"A big 大 person stretching up with one 一 flat line over their head: the one thing even the biggest person can't reach past is the sky.","example":{"word":"天気","reading":"てんき","meaning":"weather"}},{"character":"窓","meanings":["window"],"onyomi":["ソウ"],"kunyomi":["まど"],"jlpt":3,"components":["穴 hole","厶 private","心 heart"],"mnemonic":"A hole 穴 in the wall where you keep your private 厶 heart 心 — you sit by it and let your thoughts drift outside: a window.","example":{"word":"窓口","reading":"まどぐち","meaning":"ticket window; service counter"}}]}
     """
 
     private static let breakdownSystemPrompt = """
@@ -280,23 +371,124 @@ struct TranslationService {
         if let cached = await DefinitionCache.shared.kanjiInfo(for: kanji) {
             return cached
         }
+        guard let info = try await fetchKanjiInfoBatch([kanji]).first else {
+            throw TranslationError.invalidResponseFormat("response contained no entry for \(kanji)")
+        }
+        return info
+    }
 
-        let rawText = try await sendMessage(
-            systemPrompt: Self.kanjiInfoSystemPrompt,
-            userMessage: String(kanji),
-            maxTokens: 1024
-        )
+    /// Replaces the cached entry for one kanji with a fresh lookup, telling the model
+    /// which mnemonic the user rejected so it writes a different one.
+    func regenerateKanjiInfo(kanji: Character) async throws -> KanjiInfo {
+        let previous = await DefinitionCache.shared.kanjiInfo(for: kanji)?.mnemonic
+        var note = "The learner found the previous mnemonic for \(kanji) confusing and wants a different, clearer one."
+        if let previous, !previous.isEmpty {
+            note += " Do not reuse this story: \"\(previous)\""
+        }
+        guard let info = try await fetchKanjiInfoBatch(
+            [kanji],
+            extraInstruction: note,
+            model: Self.mnemonicRerollModel
+        ).first else {
+            throw TranslationError.invalidResponseFormat("response contained no entry for \(kanji)")
+        }
+        return info
+    }
+
+    /// Rerolls one kanji constrained to the components the user hand-picked in the
+    /// mnemonic editor (each already labelled "氵 water"). Uses the reroll model — the
+    /// user is explicitly asking for a better story — and pins the result, since a
+    /// mnemonic built from parts they curated shouldn't lose to a machine fetch on
+    /// another device or in the kanji-study app.
+    func regenerateKanjiInfo(kanji: Character, using components: [String]) async throws -> KanjiInfo {
+        let previous = await DefinitionCache.shared.kanjiInfo(for: kanji)?.mnemonic
+        let note = Self.componentInstruction(kanji: kanji, components: components, rejecting: previous)
+        guard let info = try await fetchKanjiInfoBatch(
+            [kanji],
+            extraInstruction: note,
+            model: Self.mnemonicRerollModel,
+            pin: true
+        ).first else {
+            throw TranslationError.invalidResponseFormat("response contained no entry for \(kanji)")
+        }
+        return info
+    }
+
+    /// User-message suffix constraining a reroll to hand-picked parts. The chosen
+    /// labels are echoed back into `components` verbatim so the keywords the user saw
+    /// in the picker are the ones that end up on the card.
+    ///
+    /// Deliberately an *extra instruction* rather than a `kanjiInfoSystemPrompt`
+    /// change: the system prompt stays byte-identical to the kanji-study app's, so
+    /// there is nothing to mirror when this wording changes.
+    static func componentInstruction(kanji: Character, components: [String],
+                                     rejecting previous: String?) -> String {
+        let list = "[" + components.map { "\"\($0)\"" }.joined(separator: ",") + "]"
+        var text = """
+        The learner has hand-picked the exact components the mnemonic for \(kanji) must be built from. \
+        Set "components" to exactly this list, verbatim and in this order: \(list). \
+        Write the mnemonic using ONLY these parts: every one must appear in the story written as its \
+        character, and no other part or shape may be mentioned. They must still combine into a \
+        cause-and-effect scene that lands on the kanji's primary meaning. Keep all other fields accurate as usual.
+        """
+        if let previous, !previous.isEmpty {
+            text += " Do not reuse this story: \"\(previous)\""
+        }
+        return text
+    }
+
+    /// Fetches up to `KanjiInfoPrefetcher.batchSize` kanji in one Opus request (same
+    /// batch prompt as the kanji-study app) and caches every returned entry, stamped
+    /// `fetchedAt` for the newest-wins shared-cache merge. Used by the modal fetch
+    /// (batch of 1), regenerate, and the background prefetcher.
+    ///
+    /// Pinned entries are safe from the prefetcher for free: it re-checks the cache
+    /// per kanji before fetching, and a pinned entry is by definition already cached.
+    /// Only the two user-initiated reroll paths reach a kanji that already has info.
+    func fetchKanjiInfoBatch(
+        _ kanji: [Character],
+        extraInstruction: String? = nil,
+        model: String = TranslationService.kanjiInfoModel,
+        pin: Bool = false
+    ) async throws -> [KanjiInfo] {
+        guard !kanji.isEmpty else { return [] }
+        var userMessage = "[" + kanji.map { "\"\($0)\"" }.joined(separator: ",") + "]"
+        if let extraInstruction {
+            userMessage += "\n\n" + extraInstruction
+        }
+        // An empty response is transient — thinking length varies run to run — so one
+        // retry usually turns a lost reroll into a result. Only this error is retried;
+        // a bad key or a malformed body would just fail the same way twice.
+        let rawText: String
+        do {
+            rawText = try await sendKanjiInfoMessage(userMessage: userMessage, model: model)
+        } catch let error as TranslationError {
+            guard case .emptyResponse = error else { throw error }
+            rawText = try await sendKanjiInfoMessage(userMessage: userMessage, model: model)
+        }
         let jsonText = Self.extractJSON(from: rawText)
         guard let jsonData = jsonText.data(using: .utf8) else {
             throw TranslationError.invalidResponseFormat("non-UTF8 response")
         }
+        let decoded: KanjiInfoBatchResponse
         do {
-            let info = try JSONDecoder().decode(KanjiInfo.self, from: jsonData)
-            await DefinitionCache.shared.setKanjiInfo(info, for: kanji)
-            return info
+            decoded = try JSONDecoder().decode(KanjiInfoBatchResponse.self, from: jsonData)
         } catch {
             throw TranslationError.invalidResponseFormat(error.localizedDescription)
         }
+        let wanted = Set(kanji.map(String.init))
+        var results: [KanjiInfo] = []
+        for var info in decoded.kanji where wanted.contains(info.character) {
+            info.fetchedAt = Date()
+            // Unpinned when `pin` is false — which is exactly how a confirmed
+            // "New mnemonic" reroll gives up a pin the user no longer wants.
+            if pin { info.pinned = true }
+            if let character = info.character.first {
+                await DefinitionCache.shared.setKanjiInfo(info, for: character)
+            }
+            results.append(info)
+        }
+        return results
     }
 
     func fetchBreakdown(sentence: String, words: [Word], translation: String) async throws -> String {
@@ -389,6 +581,8 @@ struct TranslationService {
     /// system/user prompts and return the model's text, so the four public calls and all the
     /// JSON-extraction/parsing downstream are provider-agnostic.
     private func sendMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
+        await MainActor.run { AIActivity.shared.begin() }
+        defer { Task { @MainActor in AIActivity.shared.end() } }
         switch Self.provider {
         case .anthropic:
             return try await sendAnthropicMessage(systemPrompt: systemPrompt, userMessage: userMessage, maxTokens: maxTokens)
@@ -442,9 +636,84 @@ struct TranslationService {
             throw TranslationError.decodingFailed
         }
 
-        return decoded.content
+        let text = decoded.content
             .compactMap { $0.type == "text" ? $0.text : nil }
             .joined()
+        // Empty text is a real failure mode, not malformed JSON: on the kanji-info
+        // path thinking can eat the whole `max_tokens` budget before any text block is
+        // emitted, and on any path a refusal returns 200 with no text. Report it as
+        // itself so the message is useful and the caller knows it's worth retrying.
+        guard !text.isEmpty else {
+            throw TranslationError.emptyResponse(stopReason: decoded.stopReason)
+        }
+        return text
+    }
+
+    /// Anthropic-only path for kanji info (mnemonics): Opus 5 with high-effort thinking,
+    /// server-side refusal fallback, and a long timeout — same request shape as the
+    /// kanji-study app's `KanjiInfoService`. Deliberately bypasses the provider switch.
+    private func sendKanjiInfoMessage(
+        userMessage: String,
+        model: String = TranslationService.kanjiInfoModel
+    ) async throws -> String {
+        guard let apiKey = KeychainStore.read(account: .anthropic), !apiKey.isEmpty else {
+            throw TranslationError.missingAPIKey
+        }
+        await MainActor.run { AIActivity.shared.begin() }
+        defer { Task { @MainActor in AIActivity.shared.end() } }
+
+        var request = URLRequest(url: Self.anthropicEndpoint, timeoutInterval: Self.kanjiInfoTimeout)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue(Self.anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        request.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+
+        let payload = KanjiInfoMessagesRequest(
+            model: model,
+            maxTokens: Self.kanjiInfoMaxTokens,
+            system: Self.kanjiInfoSystemPrompt,
+            messages: [.init(role: "user", content: userMessage)]
+        )
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw TranslationError.network(error)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw TranslationError.decodingFailed
+        }
+
+        guard (200..<300).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(APIErrorEnvelope.self, from: data).error.message)
+                ?? String(data: data, encoding: .utf8)
+                ?? "Unknown error"
+            throw TranslationError.apiError(status: http.statusCode, message: message)
+        }
+
+        let decoded: MessagesResponse
+        do {
+            decoded = try JSONDecoder().decode(MessagesResponse.self, from: data)
+        } catch {
+            throw TranslationError.decodingFailed
+        }
+
+        let text = decoded.content
+            .compactMap { $0.type == "text" ? $0.text : nil }
+            .joined()
+        // Empty text is a real failure mode, not malformed JSON: on the kanji-info
+        // path thinking can eat the whole `max_tokens` budget before any text block is
+        // emitted, and on any path a refusal returns 200 with no text. Report it as
+        // itself so the message is useful and the caller knows it's worth retrying.
+        guard !text.isEmpty else {
+            throw TranslationError.emptyResponse(stopReason: decoded.stopReason)
+        }
+        return text
     }
 
     /// OpenAI Chat Completions. gpt-4.1 uses the classic request shape (`max_tokens`, no hidden
@@ -600,12 +869,41 @@ private struct MessagesRequest: Encodable {
     }
 }
 
+/// The Opus 5 kanji-info request: the standard Messages shape plus the server-side
+/// refusal fallback (beta; the recommended default for Opus 5 requests) and
+/// high-effort thinking (Terry prefers mnemonic quality over latency — the long
+/// request timeout absorbs the wait instead).
+private struct KanjiInfoMessagesRequest: Encodable {
+    let model: String
+    let maxTokens: Int
+    let system: String
+    let messages: [MessagesRequest.Message]
+    let fallbacks = "default"
+    let outputConfig = OutputConfig(effort: "high")
+
+    struct OutputConfig: Encodable { let effort: String }
+
+    enum CodingKeys: String, CodingKey {
+        case model, system, messages, fallbacks
+        case maxTokens = "max_tokens"
+        case outputConfig = "output_config"
+    }
+}
+
 private struct MessagesResponse: Decodable {
     let content: [ContentBlock]
+    /// "end_turn", "max_tokens", "refusal", … — the only way to tell a truncated
+    /// response from a declined one, since both arrive as 200 with no text.
+    let stopReason: String?
 
     struct ContentBlock: Decodable {
         let type: String
         let text: String?
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case content
+        case stopReason = "stop_reason"
     }
 }
 
@@ -670,6 +968,10 @@ private struct DefinitionsResponse: Decodable {
     }
 }
 
+private struct KanjiInfoBatchResponse: Decodable {
+    let kanji: [KanjiInfo]
+}
+
 private struct BreakdownInput: Encodable {
     let sentence: String
     let words: [BreakdownInputWord]
@@ -687,5 +989,125 @@ private struct APIErrorEnvelope: Decodable {
 
     struct APIError: Decodable {
         let message: String
+    }
+}
+
+// MARK: - Background kanji-info prefetch
+
+/// Quietly fills the kanji-info cache while the app is in use, so opening
+/// `KanjiDetailView` is instant instead of waiting a minute on the Opus call.
+/// Two feeds: the just-parsed sentence's kanji (front of the queue) and the
+/// all-time seen-kanji backlog from `FrequencyTracker`, most-seen first. One
+/// serial worker drains the queue in batches of `batchSize`; kanji that gain a
+/// cache entry while queued (an earlier batch, a CloudKit adoption from another
+/// device or the kanji-study app) are skipped at fetch time, so no Opus call is
+/// ever spent on a kanji that already has info. Errors are logged, not surfaced —
+/// the modal's own fetch path remains the user-visible one. (Declared here rather
+/// than its own file to avoid a new pbxproj entry, like `JapaneseWordFilter`.)
+@MainActor
+final class KanjiInfoPrefetcher {
+    static let shared = KanjiInfoPrefetcher()
+
+    /// Kanji per request — matches the kanji-study app's batch size.
+    static let batchSize = 8
+
+    private static let log = Logger(subsystem: "com.terrydonaghe.NihongoPro", category: "prefetch")
+
+    private let translator = TranslationService()
+    /// Kanji with a request currently in flight, so `ensure` can wait on the
+    /// prefetch instead of firing a duplicate request.
+    private var inFlight: Set<Character> = []
+    private var queue: [Character] = []
+    private var queued: Set<Character> = []
+    private var worker: Task<Void, Never>?
+
+    private init() {}
+
+    private var hasAPIKey: Bool {
+        !(KeychainStore.read(account: .anthropic) ?? "").isEmpty
+    }
+
+    /// Queues kanji for background fetch. `priority` puts them at the front (the
+    /// current sentence's kanji) ahead of the backlog. Cache membership is checked
+    /// at fetch time, not here, so enqueueing liberally is cheap.
+    func enqueue(_ kanji: [Character], priority: Bool = false) {
+        guard hasAPIKey else { return }
+        let fresh = kanji.filter { $0.isKanji && !queued.contains($0) && !inFlight.contains($0) }
+        if !fresh.isEmpty {
+            queued.formUnion(fresh)
+            if priority {
+                queue.insert(contentsOf: fresh, at: 0)
+            } else {
+                queue.append(contentsOf: fresh)
+            }
+        }
+        startWorkerIfNeeded()
+    }
+
+    /// Queues every kanji ever seen (most-seen first) behind whatever is already
+    /// queued. Called once per launch after the initial iCloud sync, so kanji whose
+    /// info just arrived from another device aren't re-fetched.
+    func enqueueBacklog() {
+        Task { [weak self] in
+            let counts = await FrequencyTracker.shared.snapshot().kanji
+            let ordered = counts
+                .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+                .compactMap(\.key.first)
+            self?.enqueue(ordered)
+        }
+    }
+
+    /// The modal's entry point: cached → instant; a prefetch in flight → wait for
+    /// it; otherwise fetch immediately (jumping the queue).
+    func ensure(_ kanji: Character) async throws -> KanjiInfo {
+        if let cached = await DefinitionCache.shared.kanjiInfo(for: kanji) {
+            return cached
+        }
+        if inFlight.contains(kanji) {
+            while inFlight.contains(kanji) {
+                try await Task.sleep(for: .milliseconds(250))
+            }
+            if let cached = await DefinitionCache.shared.kanjiInfo(for: kanji) {
+                return cached
+            }
+        }
+        return try await translator.fetchKanjiInfo(kanji: kanji)
+    }
+
+    private func startWorkerIfNeeded() {
+        guard worker == nil, !queue.isEmpty else { return }
+        worker = Task { [weak self] in
+            await self?.drain()
+        }
+    }
+
+    private func drain() async {
+        while !queue.isEmpty {
+            var batch: [Character] = []
+            while batch.count < Self.batchSize, !queue.isEmpty {
+                let kanji = queue.removeFirst()
+                queued.remove(kanji)
+                if inFlight.contains(kanji) { continue }
+                if await DefinitionCache.shared.kanjiInfo(for: kanji) != nil { continue }
+                batch.append(kanji)
+            }
+            guard !batch.isEmpty else { continue }
+            inFlight.formUnion(batch)
+            defer { inFlight.subtract(batch) }
+            do {
+                _ = try await translator.fetchKanjiInfoBatch(batch)
+                Self.log.info("Prefetched info for \(batch.count) kanji, \(self.queue.count) queued")
+            } catch TranslationError.missingAPIKey {
+                queue.removeAll()
+                queued.removeAll()
+            } catch {
+                // Keep going: one failed batch shouldn't stall the rest.
+                Self.log.warning("Prefetch batch failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        worker = nil
+        // An enqueue that landed while the last batch was finishing saw a non-nil
+        // worker and didn't restart it — catch that here.
+        startWorkerIfNeeded()
     }
 }

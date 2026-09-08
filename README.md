@@ -19,16 +19,18 @@ Translation and furigana are powered by your choice of **Claude** (Anthropic) or
 ## Features
 
 - **Study-first flow** — the Japanese renders first; the English hides behind a **Show translation** button, with an optional **literal, grammar-following translation** one more tap away.
-- **Tap-to-define** — tap any word for its kana reading and a contextual English definition; tap any kanji inside that sheet for meanings, on'yomi/kun'yomi, its JLPT level, a memorable note, and an **animated stroke-order diagram** ([KanjiVG](https://kanjivg.tagaini.net) data).
+- **Tap-to-define** — tap any word for its kana reading and a contextual English definition; tap any kanji inside that sheet for meanings, on'yomi/kun'yomi, its JLPT level, an example word, a **component-based mnemonic** (the visible parts of the kanji plus a story built from them — with a "New mnemonic" reroll button), and an **animated stroke-order diagram** ([KanjiVG](https://kanjivg.tagaini.net) data). Kanji info is prefetched quietly in the background — the current sentence's kanji first, then every kanji you've ever seen — so the sheet usually opens instantly.
 - **Toggleable furigana** — off by default so you practice reading unaided; words and kanji you've marked Known stay un-furigana'd even when it's on.
 - **Familiarity levels & knowledge markup** — rate every word and kanji Unknown / Familiar / Known; the sentence display color-codes what you know, live (green Known, amber Familiar), including in drill mode.
+- **Build the mnemonic yourself** — *Edit mnemonic…* on any kanji opens a picker of its actual parts (氵 water, 艹 grass, 尸 flag), drawn from bundled KRADFILE data plus whatever the model already listed. Tick the ones the story should use and generate from exactly those, or type your own. Either way the result is **pinned**: automatic lookups never replace it, *New mnemonic* asks before overwriting it, and it syncs to Kanji Study and your other devices.
 - **Reading drill mode** — hides all furigana and turns each word into a tap-to-reveal reading quiz.
 - **Breakdown view** — a full study view per sentence: Vocabulary, Grammar, Sentence structure, and Notes.
 - **Spoken Japanese** — on-device TTS, or an optional [Azure Speech](https://portal.azure.com) neural voice (bring your own key; the free tier vastly covers personal study). Tricky rare compounds are spoken from their analyzed reading so they're pronounced right; everything else stays natural kanji for good prosody.
 - **Saved sentences** — bookmark any parsed sentence with its full parse baked in; reopens instantly and offline.
 - **Progress & streaks** — exposure counts for every word and kanji, familiarity distributions, top-25 most-seen lists, a day streak, and a last-14-days study chart. One-tap JSON export of everything as a backup.
 - **Pomodoro study timer** — a single 25-minute work / 5-minute break cycle with a ticking toolbar pill and a hard-to-miss chime.
-- **iCloud sync** — progress syncs between your iPad and iPhone via CloudKit (no server); counts merge additively so nothing is lost studying offline on both.
+- **iCloud sync** — progress syncs between your iPad and iPhone via CloudKit (no server); counts merge additively so nothing is lost studying offline on both. Fetched kanji info (meanings, readings, mnemonics) rides along too, so a kanji looked up on one device never costs a second AI call on another.
+- **AI activity indicator** — a small pulsing sparkle in the top-right toolbar whenever the app is talking to the AI, including the background mnemonic prefetch.
 - **External dictionary handoff** — jump any word or kanji into the [Nihongo](https://apps.apple.com/us/app/nihongo-japanese-dictionary/id881697245) app or [Jisho.org](https://jisho.org).
 - **No third-party dependencies** — pure SwiftUI + system frameworks.
 
@@ -62,7 +64,7 @@ The app is bring-your-own-key. All keys are entered in-app (Settings, gear icon)
 | **OpenAI** (ChatGPT) | Optional — a fallback provider | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | Comparable pay-as-you-go pricing. |
 | **Azure Speech** | Optional — premium voice | [portal.azure.com](https://portal.azure.com) → create a *Speech service* resource, copy a key + region (e.g. `westus2`) | Free tier: 500,000 characters/month — vastly more than personal study uses. |
 
-**OpenAI is optional.** Claude is the default provider and all the app needs is an Anthropic key. The OpenAI key exists as a fallback option: if you'd rather not use Claude (or want to switch), flip the **AI Provider** picker at the top of Settings to **ChatGPT** and all AI calls (translations, definitions, kanji info, breakdowns) route there instead. Note the switch is manual — the app doesn't automatically fail over between providers. You only need a key (and a small prepaid credit balance) for the provider you actually select.
+**OpenAI is optional.** Claude is the default provider and all the app needs is an Anthropic key. The OpenAI key exists as a fallback option: if you'd rather not use Claude (or want to switch), flip the **AI Provider** picker at the top of Settings to **ChatGPT** and AI calls (translations, definitions, breakdowns) route there instead. Note the switch is manual — the app doesn't automatically fail over between providers. One exception: the kanji detail sheet's info (meanings, readings, mnemonic) always uses top-tier Claude models for mnemonic quality (Opus for fetches, Fable for "New mnemonic" rerolls), so it needs the Anthropic key regardless of the selected provider.
 
 **Azure Speech is optional too.** Without it, the app speaks with the built-in on-device Apple voice — no key, no cost, works offline. Add an Azure key only if you want the premium neural voice; if Azure is ever unreachable the app automatically falls back to the on-device voice. That said, I've found Azure Speech to be the best Japanese voice for this app — it's the most accurate with kanji readings and the most natural to listen to, and the free tier makes it effectively free for personal study.
 
@@ -72,7 +74,7 @@ On first launch the Settings sheet appears automatically — paste your Anthropi
 
 1. Paste some Japanese into the text box at the bottom — one sentence or a few short ones, like a manga speech bubble. Input is limited to 200 characters; a quiet running counter appears under the box once you pass 150.
 2. About a second after you stop typing, the sentence renders at the top alongside a speaker button. Tap the speaker to hear the Japanese (or flip on **Read sentence aloud automatically** in Settings — off by default). Definitions load in a second background pass; once they arrive, words become underlined and tappable. Furigana is off by default — the **book icon** in the toolbar toggles hiragana readings above the kanji.
-3. **Tap any underlined word** for its kana reading and English meaning, with a speaker button for just that word. Inside that sheet, tap any kanji to drill into meanings, readings, a note, and an animated stroke-order diagram. Both sheets have **Look up in Nihongo / Jisho** handoff buttons and an Unknown / Familiar / Known rating control.
+3. **Tap any underlined word** for its kana reading and English meaning, with a speaker button for just that word. Inside that sheet, tap any kanji to drill into meanings, readings, an example word, a component-based mnemonic, and an animated stroke-order diagram. Both sheets have **Look up in Nihongo / Jisho** handoff buttons and an Unknown / Familiar / Known rating control.
 4. Try to understand the sentence yourself, then tap **Show translation** to reveal the natural English. A small **Show literal translation** button under it reveals a grammar-following rendering (topic first, verb last) that shows *how* the Japanese is built.
 5. Tap **Breakdown** (appears after the reveal) for the full study view: translation, Vocabulary, Grammar, Sentence structure, and Notes.
 6. Tap the **bookmark** on the sentence card to save it with its full parse; the **books icon** in the toolbar opens your library — tap to reload, swipe to delete. **Clear** (bottom left) wipes everything for a fresh sentence.
@@ -131,6 +133,8 @@ This is a personal study app built for my own daily use — feature direction is
 ## Credits
 
 Stroke order data is provided by the [KanjiVG project](https://kanjivg.tagaini.net) by Ulrich Apel and contributors, released under [Creative Commons BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). This app fetches individual SVG files on demand and does not redistribute the dataset.
+
+Kanji component data used by the mnemonic editor comes from the KRADFILE and KRADFILE2 files, © the [Electronic Dictionary Research and Development Group](https://www.edrdg.org/), used under the [EDRDG licence](https://www.edrdg.org/edrdg/licence.html) (Creative Commons BY-SA). A converted copy is bundled with the app.
 
 ## Privacy
 

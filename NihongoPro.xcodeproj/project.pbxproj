@@ -22,18 +22,22 @@
 		FA00000000000000000000BE /* KanjiDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000AE /* KanjiDetailView.swift */; };
 		FA00000000000000000000BF /* SVGPathParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000AF /* SVGPathParser.swift */; };
 		FA00000000000000000000C0 /* DefinitionCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000B0 /* DefinitionCache.swift */; };
-		FA00000000000000000000C6 /* FrequencyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000B6 /* FrequencyTracker.swift */; };
 		FA00000000000000000000C3 /* StudySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C2 /* StudySession.swift */; };
+		FA00000000000000000000C5 /* SavedSentenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C4 /* SavedSentenceStore.swift */; };
+		FA00000000000000000000C6 /* FrequencyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000B6 /* FrequencyTracker.swift */; };
 		FA00000000000000000000C8 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C7 /* Theme.swift */; };
 		FA00000000000000000000CA /* FamiliarityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C9 /* FamiliarityStore.swift */; };
-		FA00000000000000000000CE /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CD /* StatsView.swift */; };
-		FA00000000000000000000C5 /* SavedSentenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000C4 /* SavedSentenceStore.swift */; };
 		FA00000000000000000000CC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CB /* LibraryView.swift */; };
+		FA00000000000000000000CE /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CD /* StatsView.swift */; };
 		FA00000000000000000000D3 /* ActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CF /* ActivityTracker.swift */; };
 		FA00000000000000000000D5 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D4 /* ExportService.swift */; };
 		FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D8 /* AzureSpeechService.swift */; };
 		FA00000000000000000000DB /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DA /* SyncCoordinator.swift */; };
 		FA00000000000000000000DE /* VideoStudySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DD /* VideoStudySync.swift */; };
+		FA00000000000000000000D7 /* Krad.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D6 /* Krad.swift */; };
+		FA00000000000000000000E0 /* KradKeywords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DF /* KradKeywords.swift */; };
+		FA00000000000000000000E5 /* MnemonicEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000E4 /* MnemonicEditorView.swift */; };
+		FA00000000000000000000E7 /* krad_decompositions.json in Resources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000E6 /* krad_decompositions.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,19 +58,23 @@
 		FA00000000000000000000AF /* SVGPathParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SVGPathParser.swift; sourceTree = "<group>"; };
 		FA00000000000000000000B0 /* DefinitionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefinitionCache.swift; sourceTree = "<group>"; };
 		FA00000000000000000000B6 /* FrequencyTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyTracker.swift; sourceTree = "<group>"; };
+		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA00000000000000000000C2 /* StudySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudySession.swift; sourceTree = "<group>"; };
+		FA00000000000000000000C4 /* SavedSentenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSentenceStore.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C7 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		FA00000000000000000000C9 /* FamiliarityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamiliarityStore.swift; sourceTree = "<group>"; };
-		FA00000000000000000000CD /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
-		FA00000000000000000000C4 /* SavedSentenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSentenceStore.swift; sourceTree = "<group>"; };
 		FA00000000000000000000CB /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		FA00000000000000000000CD /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000CF /* ActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D4 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D8 /* AzureSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureSpeechService.swift; sourceTree = "<group>"; };
 		FA00000000000000000000DA /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
-		FA00000000000000000000DD /* VideoStudySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStudySync.swift; sourceTree = "<group>"; };
 		FA00000000000000000000DC /* NihongoPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NihongoPro.entitlements; sourceTree = "<group>"; };
-		FA00000000000000000000C1 /* NihongoPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NihongoPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA00000000000000000000DD /* VideoStudySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStudySync.swift; sourceTree = "<group>"; };
+		FA00000000000000000000D6 /* Krad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Krad.swift; sourceTree = "<group>"; };
+		FA00000000000000000000DF /* KradKeywords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KradKeywords.swift; sourceTree = "<group>"; };
+		FA00000000000000000000E4 /* MnemonicEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MnemonicEditorView.swift; sourceTree = "<group>"; };
+		FA00000000000000000000E6 /* krad_decompositions.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = krad_decompositions.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +126,10 @@
 				FA00000000000000000000DA /* SyncCoordinator.swift */,
 				FA00000000000000000000DD /* VideoStudySync.swift */,
 				FA00000000000000000000DC /* NihongoPro.entitlements */,
+				FA00000000000000000000D6 /* Krad.swift */,
+				FA00000000000000000000DF /* KradKeywords.swift */,
+				FA00000000000000000000E4 /* MnemonicEditorView.swift */,
+				FA00000000000000000000E6 /* krad_decompositions.json */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -192,6 +204,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FA00000000000000000000B7 /* Assets.xcassets in Resources */,
+				FA00000000000000000000E7 /* krad_decompositions.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -228,6 +241,9 @@
 				FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */,
 				FA00000000000000000000DB /* SyncCoordinator.swift in Sources */,
 				FA00000000000000000000DE /* VideoStudySync.swift in Sources */,
+				FA00000000000000000000D7 /* Krad.swift in Sources */,
+				FA00000000000000000000E0 /* KradKeywords.swift in Sources */,
+				FA00000000000000000000E5 /* MnemonicEditorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -358,11 +374,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NihongoPro/NihongoPro.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				CODE_SIGN_ENTITLEMENTS = NihongoPro/NihongoPro.entitlements;
 				INFOPLIST_FILE = NihongoPro/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -390,11 +406,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NihongoPro/NihongoPro.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				CODE_SIGN_ENTITLEMENTS = NihongoPro/NihongoPro.entitlements;
 				INFOPLIST_FILE = NihongoPro/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

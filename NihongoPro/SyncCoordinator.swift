@@ -80,6 +80,12 @@ struct DeviceSnapshot: Codable {
     var activity = DeviceActivitySlice()
     var familiarity = DeviceFamiliaritySlice()
     var saved = DeviceSavedSlice()
+    /// The shared kanji-info cache (meanings/readings/mnemonics), keyed by kanji.
+    /// Optional so records written by older installs (and the kanji-study app before
+    /// it published the slice) still decode. Merge is newest-`fetchedAt`-wins,
+    /// straight into `DefinitionCache` — a union, not per-device slices, since cache
+    /// entries are content anyone may re-publish.
+    var kanjiInfo: [String: KanjiInfo]?
 }
 
 // MARK: - SyncCoordinator
@@ -321,6 +327,9 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
         let remoteID = record.recordID.recordName
         let freqSlice = snapshot.freq
         await FrequencyTracker.shared.applyRemoteSlice(deviceID: remoteID, slice: freqSlice)
+        if let kanjiInfo = snapshot.kanjiInfo, !kanjiInfo.isEmpty {
+            await DefinitionCache.shared.applyRemoteKanjiInfo(kanjiInfo)
+        }
         await MainActor.run {
             ActivityTracker.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.activity)
             FamiliarityStore.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.familiarity)
@@ -359,9 +368,11 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
 
     private func gatherSnapshot() async -> DeviceSnapshot {
         let freq = await FrequencyTracker.shared.localSlice()
+        let kanjiInfo = await DefinitionCache.shared.kanjiInfoSlice()
         return await MainActor.run {
             var snapshot = DeviceSnapshot()
             snapshot.freq = freq
+            snapshot.kanjiInfo = kanjiInfo
             snapshot.activity = ActivityTracker.shared.localSlice()
             snapshot.familiarity = FamiliarityStore.shared.localSlice()
             snapshot.saved = SavedSentenceStore.shared.localSlice()

@@ -64,6 +64,20 @@ struct ContentView: View {
             .navigationTitle("Nihongo Pro")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // AI activity indicator: pulses whenever any Claude/ChatGPT request
+                // is in flight (parses, definitions, breakdowns, kanji info — the
+                // background mnemonic prefetch included). Always present and
+                // opacity-gated so the icon cluster doesn't shift as requests
+                // start and finish.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Image(systemName: "sparkles")
+                        .symbolEffect(.pulse, isActive: AIActivity.shared.isActive)
+                        .foregroundStyle(Color.accentColor)
+                        .opacity(AIActivity.shared.isActive ? 1 : 0)
+                        .animation(.smooth(duration: 0.3), value: AIActivity.shared.isActive)
+                        .accessibilityLabel("AI request in progress")
+                        .accessibilityHidden(!AIActivity.shared.isActive)
+                }
                 if let session = studySession {
                     ToolbarItem(placement: .topBarTrailing) {
                         PomodoroPill(session: session)
@@ -757,6 +771,12 @@ struct ContentView: View {
             parsedInputText = trimmed
             await FrequencyTracker.shared.recordSentence(words: result.words)
             ActivityTracker.shared.recordParse()
+            // Warm the kanji-info cache for this sentence's kanji (front of the
+            // prefetch queue) so the kanji sheet opens instantly.
+            KanjiInfoPrefetcher.shared.enqueue(
+                result.words.flatMap { $0.text.filter(\.isKanji) },
+                priority: true
+            )
             // Mostly natural kanji (natural prosody), with only pass-1-flagged tricky-reading
             // words swapped to kana so rare compounds (精米歩合) are pronounced correctly.
             if autoReadAloud {
