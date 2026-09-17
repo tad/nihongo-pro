@@ -31,3 +31,6 @@ Package.resolved
 *.p12
 *.cer
 *.mobileprovision
+
+# /brag launch-video output (rendered video, fonts, music — regenerable)
+brag-output/
