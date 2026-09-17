@@ -51,6 +51,12 @@ Translation and furigana are powered by your choice of **Claude** (Anthropic) or
    ```
 2. Select the **NihongoPro** target → **Signing & Capabilities** → pick your **Team**. (No team is committed in the project — you must select your own or the build will fail with a signing error.)
 3. Choose a destination — an iPad (e.g. iPad Pro 13″) or an iPhone running OS 26 — and press **Run** (⌘R).
+4. To run the unit tests (Swift Testing, `NihongoProTests`), press ⌘U, or headlessly:
+   ```bash
+   xcodebuild -project NihongoPro.xcodeproj -scheme NihongoPro \
+     -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
+     test CODE_SIGNING_ALLOWED=NO
+   ```
 
 **If you fork this for your own use:** change the bundle identifier (`com.terrydonaghe.NihongoPro`) to your own, and — if you want iCloud sync — the CloudKit container identifier in `NihongoPro/NihongoPro.entitlements` to match (`iCloud.<your bundle id>`). Both devices must be signed into the same iCloud account for sync; if you're signed out of iCloud, the app runs fully on local data.
 

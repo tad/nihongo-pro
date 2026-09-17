@@ -56,13 +56,13 @@ struct BreakdownView: View {
     }
 }
 
-private enum Block {
+enum Block: Equatable {
     case heading(level: Int, text: String)
     case paragraph(text: String)
     case bullet(text: String)
 }
 
-private func parseBlocks(from markdown: String) -> [Block] {
+func parseBlocks(from markdown: String) -> [Block] {
     var blocks: [Block] = []
     var paragraphBuffer: [String] = []
 

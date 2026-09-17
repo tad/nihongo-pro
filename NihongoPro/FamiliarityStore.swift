@@ -151,8 +151,8 @@ final class FamiliarityStore {
          Self.mergeEntries(my: myKanji, remote: remote.values.map(\.kanji)))
     }
 
-    private static func mergeEntries(my: [String: FamiliaritySliceEntry],
-                                     remote: [[String: FamiliaritySliceEntry]]) -> [String: FamiliaritySliceEntry] {
+    nonisolated static func mergeEntries(my: [String: FamiliaritySliceEntry],
+                                         remote: [[String: FamiliaritySliceEntry]]) -> [String: FamiliaritySliceEntry] {
         var winners = my
         for slice in remote {
             _ = mergeNewer(slice, into: &winners)
@@ -163,8 +163,8 @@ final class FamiliarityStore {
     /// Merges `incoming` into `target`, keeping the newer `modifiedAt` per key.
     /// Returns whether anything in `target` changed.
     @discardableResult
-    private static func mergeNewer(_ incoming: [String: FamiliaritySliceEntry],
-                                   into target: inout [String: FamiliaritySliceEntry]) -> Bool {
+    nonisolated static func mergeNewer(_ incoming: [String: FamiliaritySliceEntry],
+                                       into target: inout [String: FamiliaritySliceEntry]) -> Bool {
         var changed = false
         for (key, entry) in incoming {
             if let current = target[key], entry.modifiedAt <= current.modifiedAt { continue }
@@ -180,7 +180,7 @@ final class FamiliarityStore {
     }
 
     /// Picks the newest `modifiedAt` per key across all slices; drops tombstones.
-    private static func merge(my: [String: FamiliaritySliceEntry], remote: [[String: FamiliaritySliceEntry]]) -> [String: Level] {
+    nonisolated static func merge(my: [String: FamiliaritySliceEntry], remote: [[String: FamiliaritySliceEntry]]) -> [String: Level] {
         var result: [String: Level] = [:]
         for (key, entry) in mergeEntries(my: my, remote: remote) {
             if let level = Level(rawValue: entry.level), level != .unknown {

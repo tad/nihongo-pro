@@ -785,7 +785,7 @@ struct TranslationService {
         return decoded.choices.first?.message.content ?? ""
     }
 
-    private static func extractJSON(from text: String) -> String {
+    static func extractJSON(from text: String) -> String {
         let stripped = stripCodeFences(from: text)
         guard let firstBrace = stripped.firstIndex(of: "{"),
               let lastBrace = stripped.lastIndex(of: "}"),
@@ -795,7 +795,7 @@ struct TranslationService {
         return String(stripped[firstBrace...lastBrace])
     }
 
-    private static func stripCodeFences(from text: String) -> String {
+    static func stripCodeFences(from text: String) -> String {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("```json") {
             trimmed = String(trimmed.dropFirst("```json".count))
@@ -859,7 +859,7 @@ struct TranslationService {
         "\u{301D}", "\u{301E}", "\u{301F}"
     ]
 
-    private static func sanitizeForJSON(_ text: String) -> String {
+    static func sanitizeForJSON(_ text: String) -> String {
         let stripped = text.filter { !Self.charsToStripForJSON.contains($0) }
         return stripped.replacingOccurrences(of: "\\", with: "／")
     }

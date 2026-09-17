@@ -2,10 +2,20 @@ import SwiftUI
 
 @main
 struct NihongoProApp: App {
+    /// True when the app is launched as the host for `NihongoProTests`. The test
+    /// host is built unsigned (`CODE_SIGNING_ALLOWED=NO`), which strips the iCloud
+    /// entitlement, so starting CloudKit sync there would crash at launch; the
+    /// prefetch backlog and the Video-Study loop are just noise under test.
+    static let isRunningTests: Bool =
+        NSClassFromString("XCTestCase") != nil
+        || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .task {
+                    guard !Self.isRunningTests else { return }
                     // Start iCloud sync once per launch. No-ops if iCloud is
                     // unavailable; the app works fully on local data either way.
                     await SyncCoordinator.shared.start()

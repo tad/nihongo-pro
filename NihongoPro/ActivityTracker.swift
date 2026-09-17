@@ -29,12 +29,20 @@ final class ActivityTracker {
     private let remoteURL: URL
     private let calendar = Calendar.current
 
-    private static let dayFormatter: DateFormatter = {
+    /// `DateFormatter` is thread-safe (and `Sendable` on the iOS 26 SDK), so one
+    /// shared instance serves the nonisolated `dayKey(for:)`.
+    nonisolated private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
+
+    /// The local-day key a date falls on (`yyyy-MM-dd`, user's calendar/timezone).
+    /// These strings are persisted, so the format is a contract.
+    nonisolated static func dayKey(for date: Date) -> String {
+        dayFormatter.string(from: date)
+    }
 
     private init() {
         let dir = AppDataDirectory.url()
@@ -109,17 +117,22 @@ final class ActivityTracker {
     /// at least one parse. Today not yet counting doesn't break a streak earned
     /// through yesterday.
     var currentStreak: Int {
-        let today = calendar.startOfDay(for: Date())
+        Self.streak(in: dailyCounts, today: Date(), calendar: calendar)
+    }
+
+    /// Pure streak rule over per-day counts (see `currentStreak`).
+    nonisolated static func streak(in counts: [String: Int], today now: Date, calendar: Calendar) -> Int {
+        let today = calendar.startOfDay(for: now)
         var streak = 0
         var cursor = today
 
         // If today has no activity yet, start counting from yesterday.
-        if (dailyCounts[Self.dayFormatter.string(from: today)] ?? 0) == 0 {
+        if (counts[dayKey(for: today)] ?? 0) == 0 {
             guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return 0 }
             cursor = yesterday
         }
 
-        while (dailyCounts[Self.dayFormatter.string(from: cursor)] ?? 0) > 0 {
+        while (counts[dayKey(for: cursor)] ?? 0) > 0 {
             streak += 1
             guard let prev = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
             cursor = prev

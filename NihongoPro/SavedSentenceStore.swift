@@ -166,9 +166,13 @@ final class SavedSentenceStore {
         persistRemote()
     }
 
+    private func recompute() {
+        sentences = Self.merge(my: mySaved, remote: remote.values.map(\.entries))
+    }
+
     /// Union by text; the entry with the latest event (save or delete) wins; if that
     /// winner is a tombstone the text is omitted. Result is newest-save first.
-    private func recompute() {
+    nonisolated static func merge(my: [SavedSliceEntry], remote: [[SavedSliceEntry]]) -> [SavedSentence] {
         var winners: [String: SavedSliceEntry] = [:]
         func consider(_ entry: SavedSliceEntry) {
             if let current = winners[entry.text] {
@@ -177,11 +181,11 @@ final class SavedSentenceStore {
                 winners[entry.text] = entry
             }
         }
-        for entry in mySaved { consider(entry) }
-        for slice in remote.values {
-            for entry in slice.entries { consider(entry) }
+        for entry in my { consider(entry) }
+        for slice in remote {
+            for entry in slice { consider(entry) }
         }
-        sentences = winners.values
+        return winners.values
             .filter { $0.deletedAt == nil }
             .map {
                 SavedSentence(

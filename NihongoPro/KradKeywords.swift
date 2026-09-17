@@ -6,10 +6,10 @@
 //  krad_decompositions.json has an entry here.
 //
 //  MIRRORED with the kanji-study app's `KradKeywords.swift` — the two files are
-//  byte-identical apart from this header. That app has a test target whose
-//  `KradTests.everyComponentHasAKeyword` enforces the completeness invariant;
-//  this app has no test target, so if the KRAD data is ever regenerated, verify
-//  it over there and copy both files across together.
+//  byte-identical apart from this header. Both apps' test targets run the same
+//  `KradTests.everyComponentHasAKeyword`, which enforces the completeness
+//  invariant; if the KRAD data is ever regenerated, extend the table and copy
+//  all three KRAD files across together.
 
 enum KradKeywords {
     /// Keyed by the raw KRADFILE component character (the stand-in, where the

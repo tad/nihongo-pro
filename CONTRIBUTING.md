@@ -18,12 +18,20 @@ xcodebuild -project NihongoPro.xcodeproj -scheme NihongoPro \
   -configuration Debug build CODE_SIGNING_ALLOWED=NO
 ```
 
-There is no test target; the build plus a manual run in the simulator is the verification bar.
+The unit tests (`NihongoProTests`, Swift Testing) must pass too:
+
+```bash
+xcodebuild -project NihongoPro.xcodeproj -scheme NihongoPro \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
+  test CODE_SIGNING_ALLOWED=NO
+```
+
+They cover the pure logic (parsers, merge rules, filters). Pure logic you add should get a test; UI and network behavior are still verified by a manual run in the simulator.
 
 ## Pull request expectations
 
 - **Small and focused.** One change per PR. Refactors and features don't mix.
-- **The build must pass** (command above).
+- **The build and the tests must pass** (commands above).
 - **Update the docs in the same PR.** This repo has a hard rule: any feature addition or behavior change must update both `CLAUDE.md` (the architecture notes) and `README.md` in the same change, so the docs always reflect current state.
 - **No new dependencies.** The app is deliberately zero-third-party (no SPM, no CocoaPods). System frameworks only.
 - **Match the existing style** — SwiftUI, the existing store patterns (`@Observable` vs `actor` — see `CLAUDE.md` for when each is used), and the existing naming.
