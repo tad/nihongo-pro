@@ -43,6 +43,8 @@
 		FA00000000000000000000F7 /* MergeRuleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000F6 /* MergeRuleTests.swift */; };
 		FA00000000000000000000F9 /* KradTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000F8 /* KradTests.swift */; };
 		FA00000000000000000000FB /* JapaneseWordFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000FA /* JapaneseWordFilterTests.swift */; };
+		FA00000000000000000000FD /* JSONStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000FC /* JSONStore.swift */; };
+		FA0000000000000000000127 /* JSONStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000126 /* JSONStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -96,6 +98,8 @@
 		FA00000000000000000000F6 /* MergeRuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeRuleTests.swift; sourceTree = "<group>"; };
 		FA00000000000000000000F8 /* KradTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KradTests.swift; sourceTree = "<group>"; };
 		FA00000000000000000000FA /* JapaneseWordFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapaneseWordFilterTests.swift; sourceTree = "<group>"; };
+		FA00000000000000000000FC /* JSONStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONStore.swift; sourceTree = "<group>"; };
+		FA0000000000000000000126 /* JSONStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -159,6 +163,7 @@
 				FA00000000000000000000DF /* KradKeywords.swift */,
 				FA00000000000000000000E4 /* MnemonicEditorView.swift */,
 				FA00000000000000000000E6 /* krad_decompositions.json */,
+				FA00000000000000000000FC /* JSONStore.swift */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -182,6 +187,7 @@
 				FA00000000000000000000F6 /* MergeRuleTests.swift */,
 				FA00000000000000000000F8 /* KradTests.swift */,
 				FA00000000000000000000FA /* JapaneseWordFilterTests.swift */,
+				FA0000000000000000000126 /* JSONStoreTests.swift */,
 			);
 			path = NihongoProTests;
 			sourceTree = "<group>";
@@ -316,6 +322,7 @@
 				FA00000000000000000000D7 /* Krad.swift in Sources */,
 				FA00000000000000000000E0 /* KradKeywords.swift in Sources */,
 				FA00000000000000000000E5 /* MnemonicEditorView.swift in Sources */,
+				FA00000000000000000000FD /* JSONStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -328,6 +335,7 @@
 				FA00000000000000000000F7 /* MergeRuleTests.swift in Sources */,
 				FA00000000000000000000F9 /* KradTests.swift in Sources */,
 				FA00000000000000000000FB /* JapaneseWordFilterTests.swift in Sources */,
+				FA0000000000000000000127 /* JSONStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

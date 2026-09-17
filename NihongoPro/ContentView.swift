@@ -769,7 +769,7 @@ struct ContentView: View {
             englishTranslation = result.englishTranslation
             literalTranslation = result.literalTranslation
             parsedInputText = trimmed
-            await FrequencyTracker.shared.recordSentence(words: result.words)
+            FrequencyTracker.shared.recordSentence(words: result.words)
             ActivityTracker.shared.recordParse()
             // Warm the kanji-info cache for this sentence's kanji (front of the
             // prefetch queue) so the kanji sheet opens instantly.

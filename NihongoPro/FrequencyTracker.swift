@@ -29,17 +29,28 @@ nonisolated enum JapaneseWordFilter {
 /// sum of this device's counts plus every other device's slice fetched via iCloud
 /// (`remote`). Summing per-device slices means a count is never lost even if the
 /// user studies on both devices offline (see [SyncCoordinator]).
-actor FrequencyTracker {
+///
+/// `@MainActor @Observable` like the other progress stores (it used to be an actor):
+/// the dictionaries are small, `recordSentence` runs once per parse, and reading it
+/// from view bodies lets `StatsView` update live instead of once per open.
+@MainActor
+@Observable
+final class FrequencyTracker: RemoteSliceStore {
     static let shared = FrequencyTracker()
+
+    /// Merged (this device + all remote devices) totals. Read by `StatsView` /
+    /// `ExportService`; recomputed whenever a slice changes.
+    private(set) var wordCounts: [String: Int] = [:]
+    private(set) var kanjiCounts: [String: Int] = [:]
 
     /// This device's own counts.
     private var myWord: [String: Int] = [:]
     private var myKanji: [String: Int] = [:]
     /// Other devices' slices, keyed by deviceID (cached locally so totals are correct offline).
-    private var remote: [String: DeviceFreqSlice] = [:]
+    var remote: [String: DeviceFreqSlice] = [:]
 
     private let sliceURL: URL
-    private let remoteURL: URL
+    let remoteURL: URL
 
     private init() {
         let dir = AppDataDirectory.url()
@@ -47,36 +58,23 @@ actor FrequencyTracker {
         self.remoteURL = dir.appendingPathComponent("freq_remote.json")
 
         // Load this device's slice, migrating from the pre-sync files on first run.
-        if let data = try? Data(contentsOf: sliceURL),
-           let decoded = try? JSONDecoder().decode(DeviceFreqSlice.self, from: data) {
+        if let decoded = JSONStore.load(DeviceFreqSlice.self, from: sliceURL) {
             myWord = decoded.word
             myKanji = decoded.kanji
         } else {
-            let legacyWord = dir.appendingPathComponent("word_frequencies.json")
-            let legacyKanji = dir.appendingPathComponent("kanji_frequencies.json")
-            if let data = try? Data(contentsOf: legacyWord),
-               let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-                myWord = decoded
-            }
-            if let data = try? Data(contentsOf: legacyKanji),
-               let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-                myKanji = decoded
-            }
+            myWord = JSONStore.load([String: Int].self, from: dir.appendingPathComponent("word_frequencies.json")) ?? [:]
+            myKanji = JSONStore.load([String: Int].self, from: dir.appendingPathComponent("kanji_frequencies.json")) ?? [:]
         }
-
-        if let data = try? Data(contentsOf: remoteURL),
-           let decoded = try? JSONDecoder().decode([String: DeviceFreqSlice].self, from: data) {
-            remote = decoded
-        }
+        remote = JSONStore.load([String: DeviceFreqSlice].self, from: remoteURL) ?? [:]
 
         // Scrub punctuation/particles that older versions may have stored.
         let stale = myWord.keys.filter { !JapaneseWordFilter.shouldCount($0) }
         if !stale.isEmpty {
             for key in stale { myWord.removeValue(forKey: key) }
-            if let data = try? JSONEncoder().encode(DeviceFreqSlice(word: myWord, kanji: myKanji)) {
-                try? data.write(to: sliceURL, options: .atomic)
-            }
+            JSONStore.save(localSlice(), to: sliceURL)
         }
+
+        recompute()
     }
 
     func recordSentence(words: [Word]) {
@@ -87,34 +85,22 @@ actor FrequencyTracker {
                 myKanji[String(char), default: 0] += 1
             }
         }
+        recompute()
         persistSlice()
-        // The coordinator is main-actor-isolated; the mutation above is already
-        // complete, and the snapshot is only gathered later when the engine asks.
-        Task { @MainActor in SyncCoordinator.shared.markDirty() }
+        SyncCoordinator.shared.markDirty()
     }
 
     func wordFrequency(for word: String) -> Int {
-        var total = myWord[word] ?? 0
-        for slice in remote.values { total += slice.word[word] ?? 0 }
-        return total
+        wordCounts[word] ?? 0
     }
 
     func kanjiFrequency(for kanji: Character) -> Int {
-        let key = String(kanji)
-        var total = myKanji[key] ?? 0
-        for slice in remote.values { total += slice.kanji[key] ?? 0 }
-        return total
+        kanjiCounts[String(kanji)] ?? 0
     }
 
     /// Merged totals across all devices.
     func snapshot() -> (words: [String: Int], kanji: [String: Int]) {
-        var words = myWord
-        var kanji = myKanji
-        for slice in remote.values {
-            for (k, v) in slice.word { words[k, default: 0] += v }
-            for (k, v) in slice.kanji { kanji[k, default: 0] += v }
-        }
-        return (words, kanji)
+        (wordCounts, kanjiCounts)
     }
 
     // MARK: Sync
@@ -123,33 +109,18 @@ actor FrequencyTracker {
         DeviceFreqSlice(word: myWord, kanji: myKanji)
     }
 
-    func applyRemoteSlice(deviceID: String, slice: DeviceFreqSlice) {
-        remote[deviceID] = slice
-        persistRemote()
-    }
-
-    func removeRemoteSlice(deviceID: String) {
-        remote.removeValue(forKey: deviceID)
-        persistRemote()
-    }
-
-    func clearRemoteSlices() {
-        remote.removeAll()
-        persistRemote()
-    }
-
-    /// Device IDs whose slices this device has merged in (for the sync status UI).
-    func knownRemoteDeviceIDs() -> [String] {
-        Array(remote.keys)
+    func recompute() {
+        var words = myWord
+        var kanji = myKanji
+        for slice in remote.values {
+            for (k, v) in slice.word { words[k, default: 0] += v }
+            for (k, v) in slice.kanji { kanji[k, default: 0] += v }
+        }
+        wordCounts = words
+        kanjiCounts = kanji
     }
 
     private func persistSlice() {
-        guard let data = try? JSONEncoder().encode(DeviceFreqSlice(word: myWord, kanji: myKanji)) else { return }
-        try? data.write(to: sliceURL, options: .atomic)
-    }
-
-    private func persistRemote() {
-        guard let data = try? JSONEncoder().encode(remote) else { return }
-        try? data.write(to: remoteURL, options: .atomic)
+        JSONStore.saveLater(localSlice(), to: sliceURL)
     }
 }

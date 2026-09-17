@@ -235,7 +235,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     }
 
     private func refreshRemoteCount() async {
-        SyncStatus.shared.remoteDeviceCount = await FrequencyTracker.shared.knownRemoteDeviceIDs().count
+        SyncStatus.shared.remoteDeviceCount = FrequencyTracker.shared.knownRemoteDeviceIDs().count
     }
 
     // MARK: CKSyncEngineDelegate
@@ -327,13 +327,11 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
         guard
             let asset = record["payload"] as? CKAsset,
             let url = asset.fileURL,
-            let data = try? Data(contentsOf: url),
-            let snapshot = try? JSONDecoder().decode(DeviceSnapshot.self, from: data)
+            let snapshot = await JSONStore.loadAsync(DeviceSnapshot.self, from: url)
         else { return }
 
         let remoteID = record.recordID.recordName
-        let freqSlice = snapshot.freq
-        await FrequencyTracker.shared.applyRemoteSlice(deviceID: remoteID, slice: freqSlice)
+        FrequencyTracker.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.freq)
         if let kanjiInfo = snapshot.kanjiInfo, !kanjiInfo.isEmpty {
             await DefinitionCache.shared.applyRemoteKanjiInfo(kanjiInfo)
         }
@@ -344,7 +342,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
 
     private func applyDeletion(recordName: String) async {
         guard recordName != Self.deviceID else { return }
-        await FrequencyTracker.shared.removeRemoteSlice(deviceID: recordName)
+        FrequencyTracker.shared.removeRemoteSlice(deviceID: recordName)
         ActivityTracker.shared.removeRemoteSlice(deviceID: recordName)
         FamiliarityStore.shared.removeRemoteSlice(deviceID: recordName)
         SavedSentenceStore.shared.removeRemoteSlice(deviceID: recordName)
@@ -356,7 +354,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
             markDirty()
         case .signOut, .switchAccounts:
             // Drop cached remote data; keep this device's own slices intact.
-            await FrequencyTracker.shared.clearRemoteSlices()
+            FrequencyTracker.shared.clearRemoteSlices()
             ActivityTracker.shared.clearRemoteSlices()
             FamiliarityStore.shared.clearRemoteSlices()
             SavedSentenceStore.shared.clearRemoteSlices()
@@ -369,7 +367,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
 
     private func gatherSnapshot() async -> DeviceSnapshot {
         var snapshot = DeviceSnapshot()
-        snapshot.freq = await FrequencyTracker.shared.localSlice()
+        snapshot.freq = FrequencyTracker.shared.localSlice()
         snapshot.kanjiInfo = await DefinitionCache.shared.kanjiInfoSlice()
         snapshot.activity = ActivityTracker.shared.localSlice()
         snapshot.familiarity = FamiliarityStore.shared.localSlice()
@@ -424,12 +422,10 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     }
 
     private static func loadState() -> CKSyncEngine.State.Serialization? {
-        guard let data = try? Data(contentsOf: stateURL()) else { return nil }
-        return try? JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: data)
+        JSONStore.load(CKSyncEngine.State.Serialization.self, from: stateURL())
     }
 
     private static func saveState(_ state: CKSyncEngine.State.Serialization) {
-        guard let data = try? JSONEncoder().encode(state) else { return }
-        try? data.write(to: stateURL(), options: .atomic)
+        JSONStore.save(state, to: stateURL())
     }
 }

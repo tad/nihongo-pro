@@ -10,7 +10,7 @@ import SwiftUI
 /// can out-rank an older rating on another (see [SyncCoordinator]).
 @MainActor
 @Observable
-final class FamiliarityStore {
+final class FamiliarityStore: RemoteSliceStore {
     static let shared = FamiliarityStore()
 
     nonisolated enum Level: String, Codable, CaseIterable, Identifiable {
@@ -38,43 +38,30 @@ final class FamiliarityStore {
     private var myWord: [String: FamiliaritySliceEntry] = [:]
     private var myKanji: [String: FamiliaritySliceEntry] = [:]
     /// Other devices' slices, keyed by deviceID.
-    private var remote: [String: DeviceFamiliaritySlice] = [:]
+    var remote: [String: DeviceFamiliaritySlice] = [:]
 
     private let sliceURL: URL
-    private let remoteURL: URL
+    let remoteURL: URL
 
     private init() {
         let dir = AppDataDirectory.url()
         self.sliceURL = dir.appendingPathComponent("familiarity_slice.json")
         self.remoteURL = dir.appendingPathComponent("familiarity_remote.json")
 
-        if let data = try? Data(contentsOf: sliceURL),
-           let decoded = try? JSONDecoder().decode(DeviceFamiliaritySlice.self, from: data) {
+        if let decoded = JSONStore.load(DeviceFamiliaritySlice.self, from: sliceURL) {
             myWord = decoded.word
             myKanji = decoded.kanji
         } else {
             // Migrate the pre-sync files (plain [key: Level]) on first run.
             let now = Date()
-            let legacyWord = dir.appendingPathComponent("word_familiarity.json")
-            let legacyKanji = dir.appendingPathComponent("kanji_familiarity.json")
-            if let data = try? Data(contentsOf: legacyWord),
-               let decoded = try? JSONDecoder().decode([String: Level].self, from: data) {
-                for (k, level) in decoded {
-                    myWord[k] = FamiliaritySliceEntry(level: level.rawValue, modifiedAt: now)
-                }
+            for (k, level) in JSONStore.load([String: Level].self, from: dir.appendingPathComponent("word_familiarity.json")) ?? [:] {
+                myWord[k] = FamiliaritySliceEntry(level: level.rawValue, modifiedAt: now)
             }
-            if let data = try? Data(contentsOf: legacyKanji),
-               let decoded = try? JSONDecoder().decode([String: Level].self, from: data) {
-                for (k, level) in decoded {
-                    myKanji[k] = FamiliaritySliceEntry(level: level.rawValue, modifiedAt: now)
-                }
+            for (k, level) in JSONStore.load([String: Level].self, from: dir.appendingPathComponent("kanji_familiarity.json")) ?? [:] {
+                myKanji[k] = FamiliaritySliceEntry(level: level.rawValue, modifiedAt: now)
             }
         }
-
-        if let data = try? Data(contentsOf: remoteURL),
-           let decoded = try? JSONDecoder().decode([String: DeviceFamiliaritySlice].self, from: data) {
-            remote = decoded
-        }
+        remote = JSONStore.load([String: DeviceFamiliaritySlice].self, from: remoteURL) ?? [:]
 
         recompute()
     }
@@ -107,24 +94,6 @@ final class FamiliarityStore {
 
     func localSlice() -> DeviceFamiliaritySlice {
         DeviceFamiliaritySlice(word: myWord, kanji: myKanji)
-    }
-
-    func applyRemoteSlice(deviceID: String, slice: DeviceFamiliaritySlice) {
-        remote[deviceID] = slice
-        recompute()
-        persistRemote()
-    }
-
-    func removeRemoteSlice(deviceID: String) {
-        remote.removeValue(forKey: deviceID)
-        recompute()
-        persistRemote()
-    }
-
-    func clearRemoteSlices() {
-        remote.removeAll()
-        recompute()
-        persistRemote()
     }
 
     // MARK: Video-Study two-way sync
@@ -174,7 +143,7 @@ final class FamiliarityStore {
         return changed
     }
 
-    private func recompute() {
+    func recompute() {
         wordLevels = Self.merge(my: myWord, remote: remote.values.map(\.word))
         kanjiLevels = Self.merge(my: myKanji, remote: remote.values.map(\.kanji))
     }
@@ -191,21 +160,7 @@ final class FamiliarityStore {
     }
 
     private func persistSlice() {
-        let slice = DeviceFamiliaritySlice(word: myWord, kanji: myKanji)
-        let url = sliceURL
-        Task.detached {
-            guard let data = try? JSONEncoder().encode(slice) else { return }
-            try? data.write(to: url, options: .atomic)
-        }
-    }
-
-    private func persistRemote() {
-        let snapshot = remote
-        let url = remoteURL
-        Task.detached {
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
-            try? data.write(to: url, options: .atomic)
-        }
+        JSONStore.saveLater(localSlice(), to: sliceURL)
     }
 }
 

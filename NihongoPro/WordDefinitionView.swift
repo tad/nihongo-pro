@@ -97,7 +97,7 @@ struct WordDefinitionView: View {
                     .presentationDragIndicator(.visible)
             }
             .task {
-                seenCount = await FrequencyTracker.shared.wordFrequency(for: word.text)
+                seenCount = FrequencyTracker.shared.wordFrequency(for: word.text)
             }
         }
     }

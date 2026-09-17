@@ -32,7 +32,7 @@ nonisolated struct SavedSentence: Codable, Identifiable {
 /// on one device from resurrecting from another (see [SyncCoordinator]).
 @MainActor
 @Observable
-final class SavedSentenceStore {
+final class SavedSentenceStore: RemoteSliceStore {
     static let shared = SavedSentenceStore()
 
     /// Merged, newest first, tombstones excluded.
@@ -41,21 +41,19 @@ final class SavedSentenceStore {
     /// This device's own entries, including `deletedAt` tombstones.
     private var mySaved: [SavedSliceEntry] = []
     /// Other devices' slices, keyed by deviceID.
-    private var remote: [String: DeviceSavedSlice] = [:]
+    var remote: [String: DeviceSavedSlice] = [:]
 
     private let sliceURL: URL
-    private let remoteURL: URL
+    let remoteURL: URL
 
     private init() {
         let dir = AppDataDirectory.url()
         self.sliceURL = dir.appendingPathComponent("saved_slice.json")
         self.remoteURL = dir.appendingPathComponent("saved_remote.json")
 
-        if let data = try? Data(contentsOf: sliceURL),
-           let decoded = try? JSONDecoder().decode(DeviceSavedSlice.self, from: data) {
+        if let decoded = JSONStore.load(DeviceSavedSlice.self, from: sliceURL) {
             mySaved = decoded.entries
-        } else if let data = try? Data(contentsOf: dir.appendingPathComponent("saved_sentences.json")),
-                  let decoded = try? JSONDecoder().decode([SavedSentence].self, from: data) {
+        } else if let decoded = JSONStore.load([SavedSentence].self, from: dir.appendingPathComponent("saved_sentences.json")) {
             // Migrate the pre-sync file on first run.
             mySaved = decoded.map {
                 SavedSliceEntry(
@@ -70,10 +68,7 @@ final class SavedSentenceStore {
             }
         }
 
-        if let data = try? Data(contentsOf: remoteURL),
-           let decoded = try? JSONDecoder().decode([String: DeviceSavedSlice].self, from: data) {
-            remote = decoded
-        }
+        remote = JSONStore.load([String: DeviceSavedSlice].self, from: remoteURL) ?? [:]
 
         recompute()
     }
@@ -148,25 +143,7 @@ final class SavedSentenceStore {
         DeviceSavedSlice(entries: mySaved)
     }
 
-    func applyRemoteSlice(deviceID: String, slice: DeviceSavedSlice) {
-        remote[deviceID] = slice
-        recompute()
-        persistRemote()
-    }
-
-    func removeRemoteSlice(deviceID: String) {
-        remote.removeValue(forKey: deviceID)
-        recompute()
-        persistRemote()
-    }
-
-    func clearRemoteSlices() {
-        remote.removeAll()
-        recompute()
-        persistRemote()
-    }
-
-    private func recompute() {
+    func recompute() {
         sentences = Self.merge(my: mySaved, remote: remote.values.map(\.entries))
     }
 
@@ -201,20 +178,6 @@ final class SavedSentenceStore {
     }
 
     private func persistSlice() {
-        let slice = DeviceSavedSlice(entries: mySaved)
-        let url = sliceURL
-        Task.detached {
-            guard let data = try? JSONEncoder().encode(slice) else { return }
-            try? data.write(to: url, options: .atomic)
-        }
-    }
-
-    private func persistRemote() {
-        let snapshot = remote
-        let url = remoteURL
-        Task.detached {
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
-            try? data.write(to: url, options: .atomic)
-        }
+        JSONStore.saveLater(localSlice(), to: sliceURL)
     }
 }

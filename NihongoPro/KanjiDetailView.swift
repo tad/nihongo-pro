@@ -94,7 +94,7 @@ struct KanjiDetailView: View {
             _ = await (infoTask, svgTask)
         }
         .task {
-            seenCount = await FrequencyTracker.shared.kanjiFrequency(for: kanji)
+            seenCount = FrequencyTracker.shared.kanjiFrequency(for: kanji)
         }
     }
 

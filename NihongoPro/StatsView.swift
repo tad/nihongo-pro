@@ -5,9 +5,10 @@ struct StatsView: View {
     let speechService: SpeechService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var wordCounts: [String: Int] = [:]
-    @State private var kanjiCounts: [String: Int] = [:]
-    @State private var isLoading: Bool = true
+    // Live merged counts — `@Observable` tracking re-renders the sheet when a parse
+    // or a fetched remote slice changes them while it's open.
+    private var wordCounts: [String: Int] { FrequencyTracker.shared.wordCounts }
+    private var kanjiCounts: [String: Int] { FrequencyTracker.shared.kanjiCounts }
 
     @State private var selectedWord: WordSelection?
     @State private var selectedKanji: KanjiSelection?
@@ -31,11 +32,7 @@ struct StatsView: View {
 
                 ScrollView {
                     Group {
-                        if isLoading {
-                            ProgressView()
-                                .controlSize(.large)
-                                .padding(.top, 80)
-                        } else if wordCounts.isEmpty && kanjiCounts.isEmpty {
+                        if wordCounts.isEmpty && kanjiCounts.isEmpty {
                             emptyState
                         } else {
                             content
@@ -63,12 +60,6 @@ struct StatsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-            }
-            .task {
-                let snap = await FrequencyTracker.shared.snapshot()
-                wordCounts = snap.words
-                kanjiCounts = snap.kanji
-                isLoading = false
             }
             .sheet(item: $selectedWord) { selection in
                 WordDefinitionView(word: selection.word, translator: translator, speechService: speechService)

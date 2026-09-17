@@ -23,7 +23,7 @@ enum ExportService {
     /// export reflects edits made during this session.
     @MainActor
     static func makeExportFile() async -> URL? {
-        let freq = await FrequencyTracker.shared.snapshot()
+        let freq = FrequencyTracker.shared.snapshot()
         let familiarity = FamiliarityStore.shared
         let activity = ActivityTracker.shared
         let saved = SavedSentenceStore.shared

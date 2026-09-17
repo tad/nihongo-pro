@@ -1096,13 +1096,10 @@ final class KanjiInfoPrefetcher {
     /// queued. Called once per launch after the initial iCloud sync, so kanji whose
     /// info just arrived from another device aren't re-fetched.
     func enqueueBacklog() {
-        Task { [weak self] in
-            let counts = await FrequencyTracker.shared.snapshot().kanji
-            let ordered = counts
-                .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
-                .compactMap(\.key.first)
-            self?.enqueue(ordered)
-        }
+        let ordered = FrequencyTracker.shared.kanjiCounts
+            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .compactMap(\.key.first)
+        enqueue(ordered)
     }
 
     /// The modal's entry point: cached → instant; a prefetch in flight → wait for

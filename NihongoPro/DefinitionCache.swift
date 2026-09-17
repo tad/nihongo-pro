@@ -49,14 +49,8 @@ actor DefinitionCache {
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("kanji_cache.json"))
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("kanji_cache_v2.json"))
 
-        if let data = try? Data(contentsOf: kanjiURL),
-           let decoded = try? JSONDecoder().decode([String: KanjiInfo].self, from: data) {
-            self.kanjiCache = decoded
-        }
-        if let data = try? Data(contentsOf: wordURL),
-           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
-            self.wordCache = decoded
-        }
+        self.kanjiCache = JSONStore.load([String: KanjiInfo].self, from: kanjiURL) ?? [:]
+        self.wordCache = JSONStore.load([String: String].self, from: wordURL) ?? [:]
     }
 
     func kanjiInfo(for kanji: Character) -> KanjiInfo? {
@@ -140,12 +134,10 @@ actor DefinitionCache {
     }
 
     private func persistKanjiCache() {
-        guard let data = try? JSONEncoder().encode(kanjiCache) else { return }
-        try? data.write(to: kanjiCacheURL, options: .atomic)
+        JSONStore.save(kanjiCache, to: kanjiCacheURL)
     }
 
     private func persistWordCache() {
-        guard let data = try? JSONEncoder().encode(wordCache) else { return }
-        try? data.write(to: wordCacheURL, options: .atomic)
+        JSONStore.save(wordCache, to: wordCacheURL)
     }
 }
