@@ -121,7 +121,7 @@ A calm Japanese-inspired palette: deep indigo (kon-iro) for the primary accent, 
 
 ## Tech stack
 
-- SwiftUI (universal — iPadOS / iOS 26+), no third-party dependencies; the iPhone layout is gated on device idiom so the iPad UI is unchanged
+- SwiftUI (universal — iPadOS / iOS 26+), Swift 6 language mode with strict concurrency, no third-party dependencies; the iPhone layout is gated on device idiom so the iPad UI is unchanged
 - Anthropic Messages API (`claude-sonnet-4-6`) or OpenAI Chat Completions API (`gpt-4.1`) via `URLSession` — selectable in Settings
 - iOS Keychain (`Security` framework) for API key storage (Anthropic + OpenAI + optional Azure Speech)
 - `AVSpeechSynthesizer` (`AVFoundation`) for on-device Japanese TTS, with an optional [Azure Speech](https://portal.azure.com) neural-voice path (`AVAudioPlayer` + on-device MP3 cache)

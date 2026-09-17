@@ -67,8 +67,9 @@ actor DefinitionCache {
         kanjiCache[String(kanji)] = info
         persistKanjiCache()
         // The kanji-info cache is shared through CloudKit (with other devices AND
-        // the kanji-study app), so a fresh fetch queues an upload.
-        SyncCoordinator.shared.markDirty()
+        // the kanji-study app), so a fresh fetch queues an upload. The coordinator is
+        // main-actor-isolated; the cache write above is already complete.
+        Task { @MainActor in SyncCoordinator.shared.markDirty() }
     }
 
     // MARK: Shared kanji-info cache (CloudKit)

@@ -94,6 +94,15 @@ struct DeviceSnapshot: Codable {
 /// shared instance is started once at app launch. Stores call `markDirty()` after a
 /// local mutation; the coordinator gathers the current per-device snapshot and lets
 /// the sync engine upload it, and routes fetched remote snapshots back to the stores.
+///
+/// `@MainActor`: the engine is created once, both delegate requirements are `async`
+/// (so the engine simply awaits a hop onto main), and three of the four stores plus
+/// `SyncStatus` already live on the main actor — so applying a fetched snapshot and
+/// gathering this device's snapshot are straight-line, atomic code here, and
+/// `markDirty()` / `engine` / `deferredDirty` are provably single-threaded. The two
+/// actor-isolated stores (`FrequencyTracker`, `DefinitionCache`) call `markDirty()`
+/// via `Task { @MainActor in … }`.
+@MainActor
 final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     static let shared = SyncCoordinator()
 
@@ -163,7 +172,8 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     /// "Sync now" button and run once on launch.
     func syncNow() async {
         guard let engine else { return }
-        await setStatus { $0.isSyncing = true; $0.lastError = nil }
+        SyncStatus.shared.isSyncing = true
+        SyncStatus.shared.lastError = nil
         do {
             try await engine.fetchChanges()
             do {
@@ -177,11 +187,13 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
             }
             Self.log.info("Sync completed")
             await refreshRemoteCount()
-            await setStatus { $0.isSyncing = false; $0.lastSyncDate = Date() }
+            SyncStatus.shared.isSyncing = false
+            SyncStatus.shared.lastSyncDate = Date()
         } catch {
             let detail = Self.describe(error)
             Self.log.error("Sync failed: \(detail, privacy: .public)")
-            await setStatus { $0.isSyncing = false; $0.lastError = detail }
+            SyncStatus.shared.isSyncing = false
+            SyncStatus.shared.lastError = detail
         }
     }
 
@@ -219,16 +231,11 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
         if !available {
             Self.log.warning("iCloud account not available: \(String(describing: status), privacy: .public)")
         }
-        await setStatus { $0.accountAvailable = available }
+        SyncStatus.shared.accountAvailable = available
     }
 
     private func refreshRemoteCount() async {
-        let count = await FrequencyTracker.shared.knownRemoteDeviceIDs().count
-        await setStatus { $0.remoteDeviceCount = count }
-    }
-
-    private func setStatus(_ mutate: @escaping @MainActor (SyncStatus) -> Void) async {
-        await MainActor.run { mutate(SyncStatus.shared) }
+        SyncStatus.shared.remoteDeviceCount = await FrequencyTracker.shared.knownRemoteDeviceIDs().count
     }
 
     // MARK: CKSyncEngineDelegate
@@ -256,7 +263,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
             if !changes.modifications.isEmpty || !changes.deletions.isEmpty {
                 Self.log.info("Fetched \(changes.modifications.count) record(s), \(changes.deletions.count) deletion(s)")
                 await refreshRemoteCount()
-                await setStatus { $0.lastSyncDate = Date() }
+                SyncStatus.shared.lastSyncDate = Date()
             }
 
         case .sentRecordZoneChanges(let sent):
@@ -282,7 +289,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
                 default:
                     let detail = Self.describe(failure.error)
                     Self.log.error("Record save failed: \(detail, privacy: .public)")
-                    await setStatus { $0.lastError = detail }
+                    SyncStatus.shared.lastError = detail
                 }
             }
 
@@ -308,7 +315,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
                 syncEngine.state.remove(pendingRecordZoneChanges: [.saveRecord(recordID)])
                 return nil
             }
-            return self.makeRecord(snapshot: snapshot)
+            return await self.makeRecord(snapshot: snapshot)
         }
     }
 
@@ -330,21 +337,17 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
         if let kanjiInfo = snapshot.kanjiInfo, !kanjiInfo.isEmpty {
             await DefinitionCache.shared.applyRemoteKanjiInfo(kanjiInfo)
         }
-        await MainActor.run {
-            ActivityTracker.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.activity)
-            FamiliarityStore.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.familiarity)
-            SavedSentenceStore.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.saved)
-        }
+        ActivityTracker.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.activity)
+        FamiliarityStore.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.familiarity)
+        SavedSentenceStore.shared.applyRemoteSlice(deviceID: remoteID, slice: snapshot.saved)
     }
 
     private func applyDeletion(recordName: String) async {
         guard recordName != Self.deviceID else { return }
         await FrequencyTracker.shared.removeRemoteSlice(deviceID: recordName)
-        await MainActor.run {
-            ActivityTracker.shared.removeRemoteSlice(deviceID: recordName)
-            FamiliarityStore.shared.removeRemoteSlice(deviceID: recordName)
-            SavedSentenceStore.shared.removeRemoteSlice(deviceID: recordName)
-        }
+        ActivityTracker.shared.removeRemoteSlice(deviceID: recordName)
+        FamiliarityStore.shared.removeRemoteSlice(deviceID: recordName)
+        SavedSentenceStore.shared.removeRemoteSlice(deviceID: recordName)
     }
 
     private func handleAccountChange(_ change: CKSyncEngine.Event.AccountChange) async {
@@ -354,11 +357,9 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
         case .signOut, .switchAccounts:
             // Drop cached remote data; keep this device's own slices intact.
             await FrequencyTracker.shared.clearRemoteSlices()
-            await MainActor.run {
-                ActivityTracker.shared.clearRemoteSlices()
-                FamiliarityStore.shared.clearRemoteSlices()
-                SavedSentenceStore.shared.clearRemoteSlices()
-            }
+            ActivityTracker.shared.clearRemoteSlices()
+            FamiliarityStore.shared.clearRemoteSlices()
+            SavedSentenceStore.shared.clearRemoteSlices()
         @unknown default:
             break
         }
@@ -367,17 +368,13 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     // MARK: Snapshot assembly
 
     private func gatherSnapshot() async -> DeviceSnapshot {
-        let freq = await FrequencyTracker.shared.localSlice()
-        let kanjiInfo = await DefinitionCache.shared.kanjiInfoSlice()
-        return await MainActor.run {
-            var snapshot = DeviceSnapshot()
-            snapshot.freq = freq
-            snapshot.kanjiInfo = kanjiInfo
-            snapshot.activity = ActivityTracker.shared.localSlice()
-            snapshot.familiarity = FamiliarityStore.shared.localSlice()
-            snapshot.saved = SavedSentenceStore.shared.localSlice()
-            return snapshot
-        }
+        var snapshot = DeviceSnapshot()
+        snapshot.freq = await FrequencyTracker.shared.localSlice()
+        snapshot.kanjiInfo = await DefinitionCache.shared.kanjiInfoSlice()
+        snapshot.activity = ActivityTracker.shared.localSlice()
+        snapshot.familiarity = FamiliarityStore.shared.localSlice()
+        snapshot.saved = SavedSentenceStore.shared.localSlice()
+        return snapshot
     }
 
     /// Builds this device's record for upload. Crucially it reuses the cached record

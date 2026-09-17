@@ -34,7 +34,7 @@ They cover the pure logic (parsers, merge rules, filters). Pure logic you add sh
 - **The build and the tests must pass** (commands above).
 - **Update the docs in the same PR.** This repo has a hard rule: any feature addition or behavior change must update both `CLAUDE.md` (the architecture notes) and `README.md` in the same change, so the docs always reflect current state.
 - **No new dependencies.** The app is deliberately zero-third-party (no SPM, no CocoaPods). System frameworks only.
-- **Match the existing style** — SwiftUI, the existing store patterns (`@Observable` vs `actor` — see `CLAUDE.md` for when each is used), and the existing naming.
+- **Match the existing style** — SwiftUI, the existing store patterns (`@Observable` vs `actor` — see `CLAUDE.md` for when each is used), and the existing naming. The project builds in Swift 6 language mode with complete strict concurrency, so new code must be data-race-free by construction (no `nonisolated(unsafe)` escape hatches without a comment explaining why).
 - Adding a new Swift file requires hand-editing `project.pbxproj` — the exact steps and ID conventions are in `CLAUDE.md` under "Adding a new Swift source file".
 
 ## Licensing of contributions

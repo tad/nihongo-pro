@@ -88,7 +88,9 @@ actor FrequencyTracker {
             }
         }
         persistSlice()
-        SyncCoordinator.shared.markDirty()
+        // The coordinator is main-actor-isolated; the mutation above is already
+        // complete, and the snapshot is only gathered later when the engine asks.
+        Task { @MainActor in SyncCoordinator.shared.markDirty() }
     }
 
     func wordFrequency(for word: String) -> Int {
