@@ -28,6 +28,8 @@
 	<array>
 		<string>arm64</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Pronunciation practice listens while you read the sentence aloud. Audio is transcribed on your device and never stored or uploaded.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

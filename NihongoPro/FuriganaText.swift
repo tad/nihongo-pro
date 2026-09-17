@@ -11,6 +11,9 @@ struct FuriganaText: View {
     var rubyColor: Color = .secondary
     var wordSpacing: CGFloat = 4
     var lineSpacing: CGFloat = 14
+    /// Pronunciation-practice verdicts by word index; when present, each scored
+    /// word is colored matched/partial/missed instead of by familiarity.
+    var pronunciation: [Int: PronunciationScorer.Outcome]? = nil
     var onWordTap: (Word) -> Void = { _ in }
 
     /// Indices whose reading has been revealed in drill mode. Reset whenever the
@@ -49,13 +52,15 @@ struct FuriganaText: View {
                     Button {
                         onWordTap(word)
                     } label: {
+                        let outcome = pronunciation?[index]
                         WordView(
                             word: word,
                             baseFont: baseFont,
                             rubyFont: rubyFont,
                             rubyColor: rubyColor,
                             hideFurigana: !showFurigana || Self.shouldHideFurigana(for: word, store: store),
-                            underline: word.definition != nil
+                            underline: word.definition != nil || outcome != nil,
+                            outcome: outcome
                         )
                     }
                     .buttonStyle(WordTapStyle())
@@ -102,6 +107,8 @@ private struct WordView: View {
     let hideFurigana: Bool
     /// Whether to draw the accent underline that marks the word as tappable.
     let underline: Bool
+    /// Pronunciation-practice verdict for this word, if a result is being shown.
+    var outcome: PronunciationScorer.Outcome? = nil
 
     var body: some View {
         let store = FamiliarityStore.shared
@@ -113,7 +120,7 @@ private struct WordView: View {
                         .font(rubyFont)
                         .foregroundStyle(rubyColor)
                         .opacity((hideFurigana || seg.reading == nil) ? 0 : 1)
-                    Self.markedUpText(seg.text, store: store)
+                    Self.markedUpText(seg.text, store: store, override: outcome?.markupColor)
                         .font(baseFont)
                 }
                 .fixedSize()
@@ -132,9 +139,13 @@ private struct WordView: View {
 
     /// Segment text with each kanji tinted by its familiarity level (green for
     /// Known, amber for Familiar); kana and unrated kanji keep the default color.
-    private static func markedUpText(_ text: String, store: FamiliarityStore) -> Text {
+    private static func markedUpText(_ text: String, store: FamiliarityStore, override: Color? = nil) -> Text {
         // One AttributedString with a color run per rated kanji — same glyphs and
         // colors as the old per-character `Text` concatenation, one view instead of N.
+        // A pronunciation verdict colors the whole word instead.
+        if let override {
+            return Text(text).foregroundStyle(override)
+        }
         var attributed = AttributedString()
         for char in text {
             var run = AttributedString(String(char))
@@ -149,6 +160,9 @@ private struct WordView: View {
     /// Underline color follows the word-level familiarity; unrated words keep the
     /// accent tint so the tappable cue is unchanged for them.
     private func underlineStyle(store: FamiliarityStore) -> AnyShapeStyle {
+        if let outcome {
+            return AnyShapeStyle(outcome.markupColor)
+        }
         if let color = store.wordLevel(for: word.text).markupColor {
             return AnyShapeStyle(color)
         }

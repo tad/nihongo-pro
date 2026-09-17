@@ -16,6 +16,19 @@ extension FamiliarityStore.Level {
     }
 }
 
+extension PronunciationScorer.Outcome {
+    /// Pronunciation-practice markup: a word you read correctly is green, a
+    /// partly-recognized word amber, a missed word red — overriding the familiarity
+    /// colors while a result is shown.
+    var markupColor: Color {
+        switch self {
+        case .matched: return .knownGreen
+        case .partial: return .learningYellow
+        case .missed: return .red
+        }
+    }
+}
+
 extension View {
     func cardChrome(cornerRadius: CGFloat = 20, padding: CGFloat = 24) -> some View {
         self

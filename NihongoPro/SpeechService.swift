@@ -114,6 +114,14 @@ final class SpeechService: NSObject {
 
     private static var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
 
+    /// The app's normal playback session — `.playback` on iPhone (so the ring/silent
+    /// switch can't mute study audio), `.ambient` on iPad. Called to hand the audio
+    /// session back after pronunciation practice releases the microphone.
+    static func configurePlaybackSession() {
+        try? AVAudioSession.sharedInstance().setCategory(isPhone ? .playback : .ambient)
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
     /// On iPhone, force `.playback` so the ring/silent switch can't mute study
     /// audio (an iPad has no such switch, and we leave its session untouched so
     /// iPad behavior is unchanged). No-op on iPad.

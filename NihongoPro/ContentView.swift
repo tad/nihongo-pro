@@ -33,6 +33,7 @@ struct ContentView: View {
     @AppStorage(SettingsKey.autoReadAloud.rawValue) private var autoReadAloud: Bool = false
     @FocusState private var isInputFocused: Bool
     @State private var speechService = SpeechService()
+    @State private var pronunciation = PronunciationService()
 
     private let translator = TranslationService()
 
@@ -292,7 +293,8 @@ struct ContentView: View {
     private var parsedSentenceCard: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .top, spacing: 12) {
-                FuriganaText(words: words, showFurigana: showFurigana, drillMode: drillMode) { word in
+                FuriganaText(words: words, showFurigana: showFurigana, drillMode: drillMode,
+                             pronunciation: pronunciation.outcomes) { word in
                     selectedWord = WordSelection(word: word)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -302,6 +304,7 @@ struct ContentView: View {
                         if speechService.isSpeaking {
                             speechService.stop()
                         } else {
+                            pronunciation.cancel()
                             speechService.speak(words.sentenceSpeechText())
                         }
                     } label: {
@@ -327,10 +330,27 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                     .disabled(englishTranslation.isEmpty)
                     .accessibilityLabel(isCurrentSentenceSaved ? "Remove from saved sentences" : "Save sentence")
+
+                    // Pronunciation practice: read the sentence aloud, get each word
+                    // colored matched / partial / missed.
+                    Button {
+                        Task { await togglePronunciationPractice() }
+                    } label: {
+                        Image(systemName: pronunciation.isListening ? "stop.circle.fill" : "mic.fill")
+                            .font(.title2)
+                            .contentTransition(.symbolEffect(.replace))
+                            .symbolEffect(.pulse, isActive: pronunciation.isListening)
+                            .foregroundStyle(pronunciation.isListening ? Color.red : .secondary)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(pronunciation.isBusy)
+                    .accessibilityLabel(pronunciation.isListening ? "Stop listening" : "Practise pronunciation")
                 }
             }
 
             definitionsStatus
+            pronunciationStatus
 
             if isTranslationRevealed && !englishTranslation.isEmpty {
                 Group {
@@ -413,6 +433,86 @@ struct ContentView: View {
                     .controlSize(.small)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var pronunciationStatus: some View {
+        switch pronunciation.phase {
+        case .idle:
+            EmptyView()
+        case .requestingPermission:
+            statusLine(spinner: true, "Waiting for microphone access…")
+        case .preparingAssets:
+            statusLine(spinner: true, "Preparing Japanese speech recognition… (the first use downloads a model)")
+        case .listening:
+            VStack(alignment: .leading, spacing: 4) {
+                statusLine(spinner: false, "Listening — read the sentence aloud, then tap stop.")
+                if !pronunciation.liveTranscript.isEmpty {
+                    Text(pronunciation.liveTranscript)
+                        .font(.callout.weight(.regular))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        case .evaluating:
+            statusLine(spinner: true, "Checking…")
+        case .result(let result):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: result.matched == result.total ? "checkmark.circle.fill" : "waveform")
+                    .foregroundStyle(result.matched == result.total ? Color.knownGreen : Color.accentColor)
+                Text("\(result.matched) of \(result.total) words matched")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if !result.transcript.isEmpty {
+                    Text("· heard: \(result.transcript)")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Button {
+                    pronunciation.cancel()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear pronunciation result")
+            }
+        case .failed(let message):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button("Dismiss") { pronunciation.cancel() }
+                    .font(.callout)
+            }
+        }
+    }
+
+    private func statusLine(spinner: Bool, _ text: String) -> some View {
+        HStack(spacing: 8) {
+            if spinner {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "mic.fill").foregroundStyle(Color.red)
+            }
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func togglePronunciationPractice() async {
+        if pronunciation.isListening {
+            await pronunciation.stop()
+        } else {
+            speechService.stop()
+            await pronunciation.start(expected: words)
         }
     }
 
@@ -669,6 +769,7 @@ struct ContentView: View {
     /// before `inputText` so the `onChange` auto-parse handler sees them equal and
     /// bails — the saved parse (furigana + definitions) is reused as-is, no network.
     private func load(_ sentence: SavedSentence) {
+        pronunciation.cancel()
         autoParseTask?.cancel()
         autoParseTask = nil
         if speechService.isSpeaking {
@@ -692,6 +793,7 @@ struct ContentView: View {
     }
 
     private func clear() {
+        pronunciation.cancel()
         autoParseTask?.cancel()
         autoParseTask = nil
         if speechService.isSpeaking {
@@ -746,6 +848,7 @@ struct ContentView: View {
     }
 
     private func translate() async {
+        pronunciation.cancel()
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 

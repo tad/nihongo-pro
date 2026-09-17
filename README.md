@@ -23,6 +23,7 @@ Translation and furigana are powered by your choice of **Claude** (Anthropic) or
 - **Toggleable furigana** — off by default so you practice reading unaided; words and kanji you've marked Known stay un-furigana'd even when it's on.
 - **Familiarity levels & knowledge markup** — rate every word and kanji Unknown / Familiar / Known; the sentence display color-codes what you know, live (green Known, amber Familiar), including in drill mode.
 - **Build the mnemonic yourself** — *Edit mnemonic…* on any kanji opens a picker of its actual parts (氵 water, 艹 grass, 尸 flag), drawn from bundled KRADFILE data plus whatever the model already listed. Tick the ones the story should use and generate from exactly those, or type your own. Either way the result is **pinned**: automatic lookups never replace it, *New mnemonic* asks before overwriting it, and it syncs to Kanji Study and your other devices.
+- **Pronunciation practice** — tap the microphone on the sentence card, read the sentence aloud, and each word turns green / amber / red for matched / partly recognized / missed. On-device speech recognition (iOS 26's `SpeechAnalyzer`); the first use downloads Apple's Japanese speech model. Nothing is recorded or uploaded.
 - **Reading drill mode** — hides all furigana and turns each word into a tap-to-reveal reading quiz.
 - **Breakdown view** — a full study view per sentence: Vocabulary, Grammar, Sentence structure, and Notes.
 - **Spoken Japanese** — on-device TTS, or an optional [Azure Speech](https://portal.azure.com) neural voice (bring your own key; the free tier vastly covers personal study). Tricky rare compounds are spoken from their analyzed reading so they're pronounced right; everything else stays natural kanji for good prosody.
@@ -125,6 +126,7 @@ A calm Japanese-inspired palette: deep indigo (kon-iro) for the primary accent, 
 - Anthropic Messages API (`claude-sonnet-4-6`) or OpenAI Chat Completions API (`gpt-4.1`) via `URLSession` — selectable in Settings
 - iOS Keychain (`Security` framework) for API key storage (Anthropic + OpenAI + optional Azure Speech)
 - `AVSpeechSynthesizer` (`AVFoundation`) for on-device Japanese TTS, with an optional [Azure Speech](https://portal.azure.com) neural-voice path (`AVAudioPlayer` + on-device MP3 cache)
+- `SpeechAnalyzer` / `SpeechTranscriber` (`Speech`, iOS 26) for on-device pronunciation practice, with a pure kana-alignment scorer covered by the unit tests
 - `CloudKit` (`CKSyncEngine`, private database) for serverless iCloud sync of progress across devices
 - Native SwiftUI stroke renderer (`Path` trim animation on a 109-unit canvas with grid + numbered badges)
 - Stroke order SVGs from [KanjiVG](https://kanjivg.tagaini.net) (CC BY-SA 3.0), fetched on demand and cached locally
@@ -144,7 +146,7 @@ Kanji component data used by the mnemonic editor comes from the KRADFILE and KRA
 
 ## Privacy
 
-Japanese sentences you translate are sent to your selected AI provider for processing — either Anthropic (subject to [Anthropic's data-handling policies](https://www.anthropic.com/legal/privacy)) or OpenAI (subject to [OpenAI's policies](https://openai.com/policies/)). Nothing is stored on a server controlled by this app, and nothing is sent anywhere else.
+Pronunciation practice transcribes your voice entirely on the device; audio is never stored or sent anywhere. Japanese sentences you translate are sent to your selected AI provider for processing — either Anthropic (subject to [Anthropic's data-handling policies](https://www.anthropic.com/legal/privacy)) or OpenAI (subject to [OpenAI's policies](https://openai.com/policies/)). Nothing is stored on a server controlled by this app, and nothing is sent anywhere else.
 
 ## License
 
