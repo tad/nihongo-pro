@@ -11,20 +11,20 @@ struct SettingsView: View {
     @State private var hasExistingKey: Bool
 
     // Which AI service powers the translation/definition/kanji/breakdown calls.
-    @AppStorage("aiProvider") private var aiProviderRaw: String = AIProvider.anthropic.rawValue
+    @AppStorage(SettingsKey.aiProvider.rawValue) private var aiProviderRaw: String = AIProvider.anthropic.rawValue
     @State private var openAIKey: String = ""
     @State private var hasOpenAIKey: Bool
-    @AppStorage("speechRate") private var speechRateRaw: String = SpeechRate.natural.rawValue
-    @AppStorage("autoReadAloud") private var autoReadAloud: Bool = false
-    @AppStorage("speechVoiceIdentifier") private var speechVoiceIdentifier: String = ""
+    @AppStorage(SettingsKey.speechRate.rawValue) private var speechRateRaw: String = SpeechRate.natural.rawValue
+    @AppStorage(SettingsKey.autoReadAloud.rawValue) private var autoReadAloud: Bool = false
+    @AppStorage(SettingsKey.speechVoiceIdentifier.rawValue) private var speechVoiceIdentifier: String = ""
 
     // Which engine synthesizes speech.
-    @AppStorage("voiceEngine") private var voiceEngineRaw: String = VoiceEngine.apple.rawValue
+    @AppStorage(SettingsKey.voiceEngine.rawValue) private var voiceEngineRaw: String = VoiceEngine.apple.rawValue
 
     // Premium voice (Azure)
-    @AppStorage("azureRegion") private var azureRegion: String = ""
-    @AppStorage("azureVoiceName") private var azureVoiceName: String = ""
-    @AppStorage("azureVoiceStyle") private var azureVoiceStyle: String = ""
+    @AppStorage(SettingsKey.azureRegion.rawValue) private var azureRegion: String = ""
+    @AppStorage(SettingsKey.azureVoiceName.rawValue) private var azureVoiceName: String = ""
+    @AppStorage(SettingsKey.azureVoiceStyle.rawValue) private var azureVoiceStyle: String = ""
     @State private var azureKey: String = ""
     @State private var hasAzureKey: Bool
     @State private var azureVoices: [AzureSpeechService.Voice] = []
@@ -32,7 +32,7 @@ struct SettingsView: View {
     @State private var azureError: String?
 
     // Video-Study sync (push known words/kanji to the Chrome extension via the CF worker).
-    @AppStorage("videoStudySyncURL") private var videoStudySyncURL: String = ""
+    @AppStorage(SettingsKey.videoStudySyncURL.rawValue) private var videoStudySyncURL: String = ""
     @State private var syncSecret: String = ""
     @State private var hasSyncSecret: Bool
     @State private var syncMessage: String?

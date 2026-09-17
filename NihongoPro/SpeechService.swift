@@ -27,10 +27,7 @@ nonisolated enum SpeechRate: String, CaseIterable, Identifiable {
         }
     }
 
-    static var current: SpeechRate {
-        let raw = UserDefaults.standard.string(forKey: "speechRate") ?? SpeechRate.natural.rawValue
-        return SpeechRate(rawValue: raw) ?? .natural
-    }
+    static var current: SpeechRate { AppSettings.speechRate }
 }
 
 /// Which engine synthesizes speech. Persisted as a raw string under `voiceEngine`.
@@ -64,27 +61,20 @@ final class SpeechService: NSObject {
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
 
     /// The engine selected in Settings; defaults to the on-device Apple voice.
-    static var voiceEngine: VoiceEngine {
-        let raw = UserDefaults.standard.string(forKey: "voiceEngine") ?? ""
-        return VoiceEngine(rawValue: raw) ?? .apple
-    }
+    static var voiceEngine: VoiceEngine { AppSettings.voiceEngine }
 
     /// Azure region (e.g. `westus2`), stored as a plain (non-secret) UserDefaults value.
-    static var azureRegion: String {
-        UserDefaults.standard.string(forKey: "azureRegion") ?? ""
-    }
+    static var azureRegion: String { AppSettings.azureRegion }
 
     /// Azure ja-JP voice ShortName chosen in Settings, or the Azure fallback voice when unset.
     static var selectedAzureVoice: String {
-        let name = UserDefaults.standard.string(forKey: "azureVoiceName") ?? ""
+        let name = AppSettings.azureVoiceName
         return name.isEmpty ? AzureSpeechService.defaultVoice : name
     }
 
     /// Azure speaking style (e.g. `cheerful`) for the selected voice, or "" for the voice's
     /// default delivery. Only some ja-JP voices support styles (see `AzureSpeechService.Voice.styleList`).
-    static var selectedAzureStyle: String {
-        UserDefaults.standard.string(forKey: "azureVoiceStyle") ?? ""
-    }
+    static var selectedAzureStyle: String { AppSettings.azureVoiceStyle }
 
     override init() {
         super.init()
@@ -230,7 +220,7 @@ final class SpeechService: NSObject {
     }
 
     private static func selectedVoice() -> AVSpeechSynthesisVoice? {
-        let identifier = UserDefaults.standard.string(forKey: "speechVoiceIdentifier") ?? ""
+        let identifier = AppSettings.speechVoiceIdentifier
         if !identifier.isEmpty, let voice = AVSpeechSynthesisVoice(identifier: identifier) {
             return voice
         }

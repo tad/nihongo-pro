@@ -29,8 +29,8 @@ struct ContentView: View {
     @State private var autoParseTask: Task<Void, Never>?
     @State private var studySession: StudySession?
     @State private var showingEndSessionConfirmation: Bool = false
-    @AppStorage("showFurigana") private var showFurigana: Bool = false
-    @AppStorage("autoReadAloud") private var autoReadAloud: Bool = false
+    @AppStorage(SettingsKey.showFurigana.rawValue) private var showFurigana: Bool = false
+    @AppStorage(SettingsKey.autoReadAloud.rawValue) private var autoReadAloud: Bool = false
     @FocusState private var isInputFocused: Bool
     @State private var speechService = SpeechService()
 

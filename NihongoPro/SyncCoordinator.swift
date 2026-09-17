@@ -122,14 +122,7 @@ final class SyncCoordinator: NSObject, CKSyncEngineDelegate {
     static var shortDeviceID: String { String(deviceID.prefix(8)) }
 
     /// Stable per-install identifier; also the recordName of this device's record.
-    static let deviceID: String = {
-        let key = "syncDeviceID"
-        let defaults = UserDefaults.standard
-        if let existing = defaults.string(forKey: key) { return existing }
-        let new = UUID().uuidString
-        defaults.set(new, forKey: key)
-        return new
-    }()
+    static var deviceID: String { AppSettings.deviceID }
 
     private var myRecordID: CKRecord.ID {
         CKRecord.ID(recordName: Self.deviceID, zoneID: zoneID)

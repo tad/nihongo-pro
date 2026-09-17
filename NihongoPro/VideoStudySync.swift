@@ -8,7 +8,7 @@ import Foundation
 /// and rides CloudKit to other devices), then pushes the merged familiarity back. Runs on
 /// launch, on a periodic timer, and debounced after each local change.
 ///
-/// Config: worker URL in `@AppStorage("videoStudySyncURL")`, shared secret in the Keychain
+/// Config: worker URL in UserDefaults (`SettingsKey.videoStudySyncURL`), shared secret in the Keychain
 /// (`KeychainStore.Account.videoStudySync`). No-ops until both are set.
 @MainActor
 final class VideoStudySync {
@@ -30,8 +30,7 @@ final class VideoStudySync {
     }
 
     private var config: (url: URL, secret: String)? {
-        let urlString = (UserDefaults.standard.string(forKey: "videoStudySyncURL") ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let urlString = AppSettings.videoStudySyncURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !urlString.isEmpty,
               let secret = KeychainStore.read(account: .videoStudySync), !secret.isEmpty,
               let url = URL(string: urlString)

@@ -218,9 +218,7 @@ nonisolated struct TranslationService {
 
     /// The currently-selected AI provider, read live from UserDefaults so a change in Settings
     /// takes effect on the next call without re-instantiating the service. Defaults to Claude.
-    static var provider: AIProvider {
-        AIProvider(rawValue: UserDefaults.standard.string(forKey: "aiProvider") ?? "") ?? .anthropic
-    }
+    static var provider: AIProvider { AppSettings.aiProvider }
 
     private static let translationSystemPrompt = """
     You are a Japanese language assistant. For each Japanese passage the user sends — one sentence, or a few short ones such as a manga speech bubble — respond with exactly one JSON object and nothing else (no preamble, no markdown fences, no commentary).
