@@ -12,8 +12,7 @@ nonisolated enum JapaneseWordFilter {
 
     static func isPurePunctuation(_ text: String) -> Bool {
         guard !text.isEmpty else { return false }
-        let allowed = CharacterSet.punctuationCharacters.union(.whitespacesAndNewlines)
-        return text.unicodeScalars.allSatisfy { allowed.contains($0) }
+        return text.allSatisfy { $0.isPunctuation || $0.isWhitespace }
     }
 
     static func shouldCount(_ text: String) -> Bool {

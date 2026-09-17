@@ -292,9 +292,7 @@ struct SettingsView: View {
 
     private var lastSyncedText: String {
         guard let date = SyncStatus.shared.lastSyncDate else { return "Never" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return date.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated))
     }
 
     private func voiceLabel(_ voice: AVSpeechSynthesisVoice) -> String {

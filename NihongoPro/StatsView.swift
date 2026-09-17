@@ -12,7 +12,6 @@ struct StatsView: View {
 
     @State private var selectedWord: WordSelection?
     @State private var selectedKanji: KanjiSelection?
-    @State private var exportItem: ExportItem?
 
     private let topListLimit = 25
     private let familiarity = FamiliarityStore.shared
@@ -45,13 +44,10 @@ struct StatsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        Task {
-                            if let url = await ExportService.makeExportFile() {
-                                exportItem = ExportItem(url: url)
-                            }
-                        }
-                    } label: {
+                    ShareLink(
+                        item: ProgressExport(),
+                        preview: SharePreview("Nihongo Pro progress", image: Image(systemName: "chart.bar.fill"))
+                    ) {
                         Image(systemName: "square.and.arrow.up")
                     }
                     .accessibilityLabel("Export progress")
@@ -70,9 +66,6 @@ struct StatsView: View {
                 KanjiDetailView(kanji: selection.character, translator: translator)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
-            }
-            .sheet(item: $exportItem) { item in
-                ShareSheet(url: item.url)
             }
         }
     }
@@ -310,11 +303,6 @@ private struct WordSelection: Identifiable {
 private struct KanjiSelection: Identifiable {
     let id = UUID()
     let character: Character
-}
-
-private struct ExportItem: Identifiable {
-    let id = UUID()
-    let url: URL
 }
 
 /// A compact bar chart of the last N days of parsing activity. Bars grow upward from

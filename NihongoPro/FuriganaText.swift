@@ -133,13 +133,17 @@ private struct WordView: View {
     /// Segment text with each kanji tinted by its familiarity level (green for
     /// Known, amber for Familiar); kana and unrated kanji keep the default color.
     private static func markedUpText(_ text: String, store: FamiliarityStore) -> Text {
-        text.reduce(Text(verbatim: "")) { result, char in
-            var t = Text(String(char))
+        // One AttributedString with a color run per rated kanji — same glyphs and
+        // colors as the old per-character `Text` concatenation, one view instead of N.
+        var attributed = AttributedString()
+        for char in text {
+            var run = AttributedString(String(char))
             if char.isKanji, let color = store.kanjiLevel(for: char).markupColor {
-                t = t.foregroundStyle(color)
+                run.foregroundColor = color
             }
-            return result + t
+            attributed += run
         }
+        return Text(attributed)
     }
 
     /// Underline color follows the word-level familiarity; unrated words keep the
@@ -156,16 +160,28 @@ struct FuriganaFlowLayout: Layout {
     var spacing: CGFloat = 4
     var lineSpacing: CGFloat = 14
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        let rows = computeRows(subviews: subviews, maxWidth: maxWidth)
+    /// Rows for the last width they were computed at, so `placeSubviews` reuses the
+    /// rows `sizeThatFits` just built instead of measuring every word twice per pass.
+    struct Cache {
+        fileprivate var width: CGFloat = -1
+        fileprivate var rows: [Row] = []
+    }
+
+    func makeCache(subviews: Subviews) -> Cache { Cache() }
+
+    func updateCache(_ cache: inout Cache, subviews: Subviews) {
+        cache.width = -1 // the words changed; measure again
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
+        let rows = rows(for: proposal.width ?? .infinity, subviews: subviews, cache: &cache)
         let height = rows.reduce(0) { $0 + $1.height } + max(0, CGFloat(rows.count - 1) * lineSpacing)
         let width = rows.map { $0.width }.max() ?? 0
         return CGSize(width: width, height: height)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let rows = computeRows(subviews: subviews, maxWidth: bounds.width)
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+        let rows = rows(for: bounds.width, subviews: subviews, cache: &cache)
         var y = bounds.minY
         for row in rows {
             var x = bounds.minX
@@ -181,15 +197,23 @@ struct FuriganaFlowLayout: Layout {
         }
     }
 
-    private struct RowItem {
+    fileprivate struct RowItem {
         let index: Int
         let size: CGSize
     }
 
-    private struct Row {
+    fileprivate struct Row {
         var items: [RowItem] = []
         var width: CGFloat = 0
         var height: CGFloat = 0
+    }
+
+    private func rows(for maxWidth: CGFloat, subviews: Subviews, cache: inout Cache) -> [Row] {
+        if cache.width == maxWidth { return cache.rows }
+        let rows = computeRows(subviews: subviews, maxWidth: maxWidth)
+        cache.width = maxWidth
+        cache.rows = rows
+        return rows
     }
 
     private func computeRows(subviews: Subviews, maxWidth: CGFloat) -> [Row] {

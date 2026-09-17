@@ -29,19 +29,16 @@ final class ActivityTracker: RemoteSliceStore {
     let remoteURL: URL
     private let calendar = Calendar.current
 
-    /// `DateFormatter` is thread-safe (and `Sendable` on the iOS 26 SDK), so one
-    /// shared instance serves the nonisolated `dayKey(for:)`.
-    nonisolated private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
+    /// `yyyy-MM-dd` in the local time zone, Gregorian — byte-for-byte what the old
+    /// `en_US_POSIX` `DateFormatter` produced (the test suite sweeps ~3000 days
+    /// against that formatter as the oracle, because these strings are persisted
+    /// keys and kanji-study's `DayKey` matches them).
+    nonisolated private static let dayKeyStyle = Date.ISO8601FormatStyle(timeZone: .current).year().month().day()
 
-    /// The local-day key a date falls on (`yyyy-MM-dd`, user's calendar/timezone).
-    /// These strings are persisted, so the format is a contract.
+    /// The local-day key a date falls on (`yyyy-MM-dd`, user's time zone). These
+    /// strings are persisted, so the format is a contract.
     nonisolated static func dayKey(for date: Date) -> String {
-        dayFormatter.string(from: date)
+        date.formatted(dayKeyStyle)
     }
 
     private init() {
@@ -64,7 +61,7 @@ final class ActivityTracker: RemoteSliceStore {
 
     /// Called once per successfully parsed sentence.
     func recordParse(on date: Date = Date()) {
-        let key = Self.dayFormatter.string(from: date)
+        let key = Self.dayKey(for: date)
         myDaily[key, default: 0] += 1
         recompute()
         persistSlice()
@@ -73,7 +70,7 @@ final class ActivityTracker: RemoteSliceStore {
 
     /// Called when a pomodoro 25-minute work block completes.
     func recordStudySession(on date: Date = Date()) {
-        let key = Self.dayFormatter.string(from: date)
+        let key = Self.dayKey(for: date)
         mySessions[key, default: 0] += 1
         recompute()
         persistSlice()
@@ -82,7 +79,7 @@ final class ActivityTracker: RemoteSliceStore {
 
     /// Sentences parsed today.
     var todayCount: Int {
-        dailyCounts[Self.dayFormatter.string(from: Date())] ?? 0
+        dailyCounts[Self.dayKey(for: Date())] ?? 0
     }
 
     /// Total pomodoro work blocks completed, all time.
@@ -92,7 +89,7 @@ final class ActivityTracker: RemoteSliceStore {
 
     /// Pomodoro work blocks completed today.
     var todayStudySessions: Int {
-        dailySessions[Self.dayFormatter.string(from: Date())] ?? 0
+        dailySessions[Self.dayKey(for: Date())] ?? 0
     }
 
     /// Number of distinct days with at least one parse.
@@ -142,7 +139,7 @@ final class ActivityTracker: RemoteSliceStore {
         let today = calendar.startOfDay(for: Date())
         return (0..<days).reversed().compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
-            let count = dict[Self.dayFormatter.string(from: day)] ?? 0
+            let count = dict[Self.dayKey(for: day)] ?? 0
             return (date: day, count: count)
         }
     }

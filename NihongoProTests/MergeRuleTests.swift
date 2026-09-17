@@ -93,6 +93,32 @@ struct SavedSentenceMergeTests {
     }
 }
 
+struct DayKeyTests {
+    /// The persisted-key contract: the new `Date.ISO8601FormatStyle` day key must equal
+    /// what the original `en_US_POSIX` `yyyy-MM-dd` `DateFormatter` produced, across
+    /// ~3000 consecutive local days (DST changes and year boundaries included).
+    @Test func matchesTheLegacyDateFormatterForEveryDay() {
+        let legacy = DateFormatter()
+        legacy.locale = Locale(identifier: "en_US_POSIX")
+        legacy.dateFormat = "yyyy-MM-dd"
+        let calendar = Calendar.current
+        var day = calendar.date(byAdding: .day, value: -1500, to: calendar.startOfDay(for: Date()))!
+        var mismatches: [String] = []
+        for _ in 0..<3000 {
+            // Sample the start of the day and a moment late in it.
+            for offset: TimeInterval in [0, 23 * 3600 + 59 * 60 + 30] {
+                let sample = day.addingTimeInterval(offset)
+                let expected = legacy.string(from: sample)
+                let actual = ActivityTracker.dayKey(for: sample)
+                if expected != actual { mismatches.append("\(expected) vs \(actual)") }
+            }
+            day = calendar.date(byAdding: .day, value: 1, to: day)!
+        }
+        #expect(mismatches.isEmpty, "\(mismatches.prefix(5))")
+        #expect(ActivityTracker.dayKey(for: Date(timeIntervalSinceReferenceDate: 0)).count == 10)
+    }
+}
+
 struct StreakTests {
     private let calendar = Calendar.current
 

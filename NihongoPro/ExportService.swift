@@ -1,6 +1,7 @@
+import CoreTransferable
 import Foundation
 import SwiftUI
-import UIKit
+import UniformTypeIdentifiers
 
 /// Gathers every piece of locally-persisted progress into a single JSON document
 /// the user can share out (AirDrop, Files, Mail…) as a backup. Round-trippable —
@@ -54,14 +55,17 @@ enum ExportService {
     }
 }
 
-/// Thin wrapper around `UIActivityViewController` so a freshly-built export file can
-/// be shared from SwiftUI via `.sheet(item:)`.
-struct ShareSheet: UIViewControllerRepresentable {
-    let url: URL
+/// The export as a `Transferable`, so `StatsView` can offer it through a plain
+/// `ShareLink` (standard share popover on iPad, share sheet on iPhone). The file is
+/// built lazily, when the user actually picks a destination, so it always reflects
+/// the latest in-memory state.
+nonisolated struct ProgressExport: Transferable {
+    nonisolated struct ExportFailed: Error {}
 
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .json) { _ in
+            guard let url = await ExportService.makeExportFile() else { throw ExportFailed() }
+            return SentTransferredFile(url)
+        }
     }
-
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
