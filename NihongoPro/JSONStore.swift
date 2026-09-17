@@ -46,19 +46,30 @@ nonisolated enum JSONStore {
         }
     }
 
-    /// Fire-and-forget encode + atomic write for the `@MainActor` stores. All writes
-    /// go through one serial `Writer` actor, so two quick saves of the same file
-    /// land in order (independent detached tasks could finish out of order and let
-    /// the older snapshot win).
+    /// Fire-and-forget encode + atomic write for the `@MainActor` stores. Jobs go
+    /// through one FIFO queue drained by a single background task, so two quick
+    /// saves of the same file always land in call order. (An actor would serialize
+    /// them but not order them — two independent `Task`s can reach an actor in
+    /// either order, and the older snapshot could win; the test suite pins this.)
     static func saveLater<T: Encodable & Sendable>(_ value: T, to url: URL) {
-        Task { await Writer.shared.save(value, to: url) }
+        writeQueue.enqueue { save(value, to: url) }
     }
 
-    private actor Writer {
-        static let shared = Writer()
+    private static let writeQueue = WriteQueue()
 
-        func save<T: Encodable & Sendable>(_ value: T, to url: URL) {
-            JSONStore.save(value, to: url)
+    private final class WriteQueue: Sendable {
+        private let continuation: AsyncStream<@Sendable () -> Void>.Continuation
+
+        init() {
+            let (stream, continuation) = AsyncStream<@Sendable () -> Void>.makeStream()
+            self.continuation = continuation
+            Task.detached(priority: .utility) {
+                for await job in stream { job() }
+            }
+        }
+
+        func enqueue(_ job: @escaping @Sendable () -> Void) {
+            continuation.yield(job)
         }
     }
 }

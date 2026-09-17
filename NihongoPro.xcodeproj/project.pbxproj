@@ -44,6 +44,7 @@
 		FA00000000000000000000F9 /* KradTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000F8 /* KradTests.swift */; };
 		FA00000000000000000000FB /* JapaneseWordFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000FA /* JapaneseWordFilterTests.swift */; };
 		FA00000000000000000000FD /* JSONStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000FC /* JSONStore.swift */; };
+		FA00000000000000000000FF /* AITransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000FE /* AITransport.swift */; };
 		FA0000000000000000000127 /* JSONStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000126 /* JSONStoreTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -99,6 +100,7 @@
 		FA00000000000000000000F8 /* KradTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KradTests.swift; sourceTree = "<group>"; };
 		FA00000000000000000000FA /* JapaneseWordFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapaneseWordFilterTests.swift; sourceTree = "<group>"; };
 		FA00000000000000000000FC /* JSONStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONStore.swift; sourceTree = "<group>"; };
+		FA00000000000000000000FE /* AITransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITransport.swift; sourceTree = "<group>"; };
 		FA0000000000000000000126 /* JSONStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -164,6 +166,7 @@
 				FA00000000000000000000E4 /* MnemonicEditorView.swift */,
 				FA00000000000000000000E6 /* krad_decompositions.json */,
 				FA00000000000000000000FC /* JSONStore.swift */,
+				FA00000000000000000000FE /* AITransport.swift */,
 				FA00000000000000000000A7 /* Assets.xcassets */,
 				FA00000000000000000000A6 /* Info.plist */,
 			);
@@ -323,6 +326,7 @@
 				FA00000000000000000000E0 /* KradKeywords.swift in Sources */,
 				FA00000000000000000000E5 /* MnemonicEditorView.swift in Sources */,
 				FA00000000000000000000FD /* JSONStore.swift in Sources */,
+				FA00000000000000000000FF /* AITransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

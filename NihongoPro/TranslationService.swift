@@ -598,8 +598,6 @@ nonisolated struct TranslationService {
     /// system/user prompts and return the model's text, so the four public calls and all the
     /// JSON-extraction/parsing downstream are provider-agnostic.
     private func sendMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
-        await AIActivity.shared.begin()
-        defer { await AIActivity.shared.end() }
         switch Self.provider {
         case .anthropic:
             return try await sendAnthropicMessage(systemPrompt: systemPrompt, userMessage: userMessage, maxTokens: maxTokens)
@@ -610,61 +608,29 @@ nonisolated struct TranslationService {
 
     @concurrent
     private func sendAnthropicMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
-        guard let apiKey = KeychainStore.read(account: .anthropic), !apiKey.isEmpty else {
-            throw TranslationError.missingAPIKey
-        }
-
-        var request = URLRequest(url: Self.anthropicEndpoint)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue(Self.anthropicVersion, forHTTPHeaderField: "anthropic-version")
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-
+        let apiKey = try AITransport.apiKey(.anthropic)
         let payload = MessagesRequest(
             model: Self.model,
             maxTokens: maxTokens,
             system: systemPrompt,
             messages: [.init(role: "user", content: userMessage)]
         )
-        request.httpBody = try JSONEncoder().encode(payload)
+        let request = AIRequest(
+            url: Self.anthropicEndpoint,
+            headers: Self.anthropicHeaders(apiKey: apiKey),
+            body: try JSONStore.encoder.encode(payload)
+        )
+        return try await AITransport.send(request, as: MessagesResponse.self).textOrThrow()
+    }
 
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw TranslationError.network(error)
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw TranslationError.decodingFailed
-        }
-
-        guard (200..<300).contains(http.statusCode) else {
-            let message = (try? JSONDecoder().decode(APIErrorEnvelope.self, from: data).error.message)
-                ?? String(data: data, encoding: .utf8)
-                ?? "Unknown error"
-            throw TranslationError.apiError(status: http.statusCode, message: message)
-        }
-
-        let decoded: MessagesResponse
-        do {
-            decoded = try JSONDecoder().decode(MessagesResponse.self, from: data)
-        } catch {
-            throw TranslationError.decodingFailed
-        }
-
-        let text = decoded.content
-            .compactMap { $0.type == "text" ? $0.text : nil }
-            .joined()
-        // Empty text is a real failure mode, not malformed JSON: on the kanji-info
-        // path thinking can eat the whole `max_tokens` budget before any text block is
-        // emitted, and on any path a refusal returns 200 with no text. Report it as
-        // itself so the message is useful and the caller knows it's worth retrying.
-        guard !text.isEmpty else {
-            throw TranslationError.emptyResponse(stopReason: decoded.stopReason, detail: decoded.stopDetails?.summary)
-        }
-        return text
+    private static func anthropicHeaders(apiKey: String, beta: String? = nil) -> [String: String] {
+        var headers = [
+            "x-api-key": apiKey,
+            "anthropic-version": anthropicVersion,
+            "content-type": "application/json",
+        ]
+        if let beta { headers["anthropic-beta"] = beta }
+        return headers
     }
 
     /// Anthropic-only path for kanji info (mnemonics): Opus 5 with high-effort thinking,
@@ -675,64 +641,20 @@ nonisolated struct TranslationService {
         userMessage: String,
         model: String = TranslationService.kanjiInfoModel
     ) async throws -> String {
-        guard let apiKey = KeychainStore.read(account: .anthropic), !apiKey.isEmpty else {
-            throw TranslationError.missingAPIKey
-        }
-        await AIActivity.shared.begin()
-        defer { await AIActivity.shared.end() }
-
-        var request = URLRequest(url: Self.anthropicEndpoint, timeoutInterval: Self.kanjiInfoTimeout)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue(Self.anthropicVersion, forHTTPHeaderField: "anthropic-version")
-        request.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-
+        let apiKey = try AITransport.apiKey(.anthropic)
         let payload = KanjiInfoMessagesRequest(
             model: model,
             maxTokens: Self.kanjiInfoMaxTokens,
             system: Self.kanjiInfoSystemPrompt,
             messages: [.init(role: "user", content: userMessage)]
         )
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw TranslationError.network(error)
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw TranslationError.decodingFailed
-        }
-
-        guard (200..<300).contains(http.statusCode) else {
-            let message = (try? JSONDecoder().decode(APIErrorEnvelope.self, from: data).error.message)
-                ?? String(data: data, encoding: .utf8)
-                ?? "Unknown error"
-            throw TranslationError.apiError(status: http.statusCode, message: message)
-        }
-
-        let decoded: MessagesResponse
-        do {
-            decoded = try JSONDecoder().decode(MessagesResponse.self, from: data)
-        } catch {
-            throw TranslationError.decodingFailed
-        }
-
-        let text = decoded.content
-            .compactMap { $0.type == "text" ? $0.text : nil }
-            .joined()
-        // Empty text is a real failure mode, not malformed JSON: on the kanji-info
-        // path thinking can eat the whole `max_tokens` budget before any text block is
-        // emitted, and on any path a refusal returns 200 with no text. Report it as
-        // itself so the message is useful and the caller knows it's worth retrying.
-        guard !text.isEmpty else {
-            throw TranslationError.emptyResponse(stopReason: decoded.stopReason, detail: decoded.stopDetails?.summary)
-        }
-        return text
+        let request = AIRequest(
+            url: Self.anthropicEndpoint,
+            headers: Self.anthropicHeaders(apiKey: apiKey, beta: "server-side-fallback-2026-07-01"),
+            body: try JSONStore.encoder.encode(payload),
+            timeout: Self.kanjiInfoTimeout
+        )
+        return try await AITransport.send(request, as: MessagesResponse.self).textOrThrow()
     }
 
     /// OpenAI Chat Completions. gpt-4.1 uses the classic request shape (`max_tokens`, no hidden
@@ -742,15 +664,7 @@ nonisolated struct TranslationService {
     /// decodes both.
     @concurrent
     private func sendOpenAIMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
-        guard let apiKey = KeychainStore.read(account: .openai), !apiKey.isEmpty else {
-            throw TranslationError.missingAPIKey
-        }
-
-        var request = URLRequest(url: Self.openAIEndpoint)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
+        let apiKey = try AITransport.apiKey(.openai)
         let payload = OpenAIChatRequest(
             model: Self.openAIModel,
             maxTokens: maxTokens,
@@ -759,35 +673,20 @@ nonisolated struct TranslationService {
                 .init(role: "user", content: userMessage)
             ]
         )
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw TranslationError.network(error)
+        let request = AIRequest(
+            url: Self.openAIEndpoint,
+            headers: ["Authorization": "Bearer \(apiKey)", "Content-Type": "application/json"],
+            body: try JSONStore.encoder.encode(payload)
+        )
+        let decoded = try await AITransport.send(request, as: OpenAIChatResponse.self)
+        let choice = decoded.choices.first
+        let text = choice?.message.content ?? ""
+        // Same guard as the Anthropic path: an empty completion is its own failure,
+        // not malformed JSON, and `finish_reason` ("length", "content_filter") says why.
+        guard !text.isEmpty else {
+            throw TranslationError.emptyResponse(stopReason: choice?.finishReason, detail: nil)
         }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw TranslationError.decodingFailed
-        }
-
-        guard (200..<300).contains(http.statusCode) else {
-            let message = (try? JSONDecoder().decode(APIErrorEnvelope.self, from: data).error.message)
-                ?? String(data: data, encoding: .utf8)
-                ?? "Unknown error"
-            throw TranslationError.apiError(status: http.statusCode, message: message)
-        }
-
-        let decoded: OpenAIChatResponse
-        do {
-            decoded = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
-        } catch {
-            throw TranslationError.decodingFailed
-        }
-
-        return decoded.choices.first?.message.content ?? ""
+        return text
     }
 
     static func extractJSON(from text: String) -> String {
@@ -953,6 +852,21 @@ nonisolated private struct MessagesResponse: Decodable {
         case stopReason = "stop_reason"
         case stopDetails = "stop_details"
     }
+
+    /// The joined text blocks. Empty text is a real failure mode, not malformed
+    /// JSON: on the kanji-info path thinking can eat the whole `max_tokens` budget
+    /// before any text block is emitted, and on any path a refusal returns 200 with
+    /// no text. Reported as `emptyResponse` so the banner is useful and the caller
+    /// knows it's worth retrying.
+    func textOrThrow() throws -> String {
+        let text = content
+            .compactMap { $0.type == "text" ? $0.text : nil }
+            .joined()
+        guard !text.isEmpty else {
+            throw TranslationError.emptyResponse(stopReason: stopReason, detail: stopDetails?.summary)
+        }
+        return text
+    }
 }
 
 nonisolated private struct OpenAIChatRequest: Encodable {
@@ -977,6 +891,13 @@ nonisolated private struct OpenAIChatResponse: Decodable {
 
     struct Choice: Decodable {
         let message: Message
+        /// "stop", "length", "content_filter", … — carried into `emptyResponse`.
+        let finishReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case message
+            case finishReason = "finish_reason"
+        }
     }
 
     struct Message: Decodable {
@@ -1032,13 +953,6 @@ nonisolated private struct BreakdownInputWord: Encodable {
     let definition: String?
 }
 
-nonisolated private struct APIErrorEnvelope: Decodable {
-    let error: APIError
-
-    struct APIError: Decodable {
-        let message: String
-    }
-}
 
 // MARK: - Background kanji-info prefetch
 
