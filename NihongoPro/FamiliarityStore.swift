@@ -13,7 +13,7 @@ import SwiftUI
 final class FamiliarityStore {
     static let shared = FamiliarityStore()
 
-    enum Level: String, Codable, CaseIterable, Identifiable {
+    nonisolated enum Level: String, Codable, CaseIterable, Identifiable {
         case unknown
         case familiar
         case known

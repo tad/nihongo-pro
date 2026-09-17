@@ -5,7 +5,7 @@ import Foundation
 /// Application Support is somehow unavailable. Shared by all stores so the path
 /// logic lives in one place. (Declared here rather than its own file to avoid a
 /// new pbxproj entry, like `JapaneseWordFilter` in `FrequencyTracker.swift`.)
-enum AppDataDirectory {
+nonisolated enum AppDataDirectory {
     static func url() -> URL {
         let base = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)

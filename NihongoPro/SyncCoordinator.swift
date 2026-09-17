@@ -36,13 +36,13 @@ final class SyncStatus {
 /// One familiarity rating with the time this device set it. `.unknown` is retained
 /// as a tombstone (not removed) so a clear on one device can out-rank an older set
 /// on another device during the merge.
-struct FamiliaritySliceEntry: Codable {
+nonisolated struct FamiliaritySliceEntry: Codable {
     var level: String      // FamiliarityStore.Level.rawValue, including "unknown"
     var modifiedAt: Date
 }
 
 /// One saved sentence as this device knows it. `deletedAt != nil` is a tombstone.
-struct SavedSliceEntry: Codable {
+nonisolated struct SavedSliceEntry: Codable {
     var id: UUID
     var text: String
     var words: [Word]
@@ -55,27 +55,27 @@ struct SavedSliceEntry: Codable {
     var eventTime: Date { max(savedAt, deletedAt ?? .distantPast) }
 }
 
-struct DeviceFreqSlice: Codable {
+nonisolated struct DeviceFreqSlice: Codable {
     var word: [String: Int] = [:]
     var kanji: [String: Int] = [:]
 }
 
-struct DeviceActivitySlice: Codable {
+nonisolated struct DeviceActivitySlice: Codable {
     var daily: [String: Int] = [:]
     var sessions: [String: Int] = [:]
 }
 
-struct DeviceFamiliaritySlice: Codable {
+nonisolated struct DeviceFamiliaritySlice: Codable {
     var word: [String: FamiliaritySliceEntry] = [:]
     var kanji: [String: FamiliaritySliceEntry] = [:]
 }
 
-struct DeviceSavedSlice: Codable {
+nonisolated struct DeviceSavedSlice: Codable {
     var entries: [SavedSliceEntry] = []
 }
 
 /// Everything this device contributes, serialized into its single CloudKit record.
-struct DeviceSnapshot: Codable {
+nonisolated struct DeviceSnapshot: Codable {
     var freq = DeviceFreqSlice()
     var activity = DeviceActivitySlice()
     var familiarity = DeviceFamiliaritySlice()

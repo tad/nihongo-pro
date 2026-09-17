@@ -65,7 +65,7 @@ struct KanjiStrokeView: View {
     }
 }
 
-struct Stroke {
+nonisolated struct Stroke {
     let path: Path
     let start: CGPoint
 }
@@ -120,7 +120,7 @@ final class StrokeAnimator {
     }
 }
 
-private struct StrokeShape: Shape {
+nonisolated private struct StrokeShape: Shape {
     let basePath: Path
     var progress: CGFloat
     var canvasUnit: CGFloat = 109

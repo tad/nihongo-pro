@@ -56,13 +56,13 @@ struct BreakdownView: View {
     }
 }
 
-enum Block: Equatable {
+nonisolated enum Block: Equatable {
     case heading(level: Int, text: String)
     case paragraph(text: String)
     case bullet(text: String)
 }
 
-func parseBlocks(from markdown: String) -> [Block] {
+nonisolated func parseBlocks(from markdown: String) -> [Block] {
     var blocks: [Block] = []
     var paragraphBuffer: [String] = []
 
@@ -104,7 +104,7 @@ func parseBlocks(from markdown: String) -> [Block] {
     return blocks
 }
 
-private func parseHeading(_ text: String) -> Block? {
+nonisolated private func parseHeading(_ text: String) -> Block? {
     var hashes = 0
     var index = text.startIndex
     while index < text.endIndex, text[index] == "#", hashes < 6 {
@@ -116,7 +116,7 @@ private func parseHeading(_ text: String) -> Block? {
     return .heading(level: hashes, text: content)
 }
 
-private func parseBullet(_ text: String) -> Block? {
+nonisolated private func parseBullet(_ text: String) -> Block? {
     if text.hasPrefix("- ") || text.hasPrefix("* ") {
         let content = String(text.dropFirst(2)).trimmingCharacters(in: .whitespaces)
         return .bullet(text: content)

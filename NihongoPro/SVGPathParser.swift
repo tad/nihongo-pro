@@ -5,7 +5,7 @@ import SwiftUI
 // Converts an SVG path "d" string into a SwiftUI `Path`.
 // Supports the subset of commands KanjiVG actually uses:
 // M m L l C c S s Z z. No arcs, no quadratics — KanjiVG doesn't emit them.
-enum SVGPathParser {
+nonisolated enum SVGPathParser {
 
     /// Parse a path d-string. Returns the constructed `Path` plus the first
     /// point of the first subpath (used to position stroke-number badges).
@@ -177,6 +177,6 @@ enum SVGPathParser {
     }
 }
 
-private extension Character {
+nonisolated private extension Character {
     var isASCIIDigit: Bool { self >= "0" && self <= "9" }
 }

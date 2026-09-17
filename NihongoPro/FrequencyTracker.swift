@@ -1,6 +1,6 @@
 import Foundation
 
-enum JapaneseWordFilter {
+nonisolated enum JapaneseWordFilter {
     static let commonParticles: Set<String> = [
         "は", "が", "を", "に", "で", "と", "も", "か", "の", "へ", "や",
         "ね", "よ", "な", "わ", "ぞ", "ぜ", "さ", "し",

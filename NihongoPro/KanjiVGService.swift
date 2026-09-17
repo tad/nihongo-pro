@@ -1,6 +1,6 @@
 import Foundation
 
-enum KanjiVGError: LocalizedError {
+nonisolated enum KanjiVGError: LocalizedError {
     case notKanji
     case notFound
     case network(Error)
@@ -20,7 +20,8 @@ enum KanjiVGError: LocalizedError {
     }
 }
 
-enum KanjiVGService {
+nonisolated enum KanjiVGService {
+    @concurrent
     static func loadSVG(for kanji: Character) async throws -> String {
         guard let codepoint = kanji.kanjiVGCodepoint else {
             throw KanjiVGError.notKanji
@@ -74,7 +75,7 @@ enum KanjiVGService {
     }
 }
 
-extension Character {
+nonisolated extension Character {
     var isKanji: Bool {
         guard let scalar = self.unicodeScalars.first else { return false }
         let value = scalar.value

@@ -6,7 +6,7 @@ import UIKit
 /// the user can share out (AirDrop, Files, Mail…) as a backup. Round-trippable —
 /// the file mirrors the on-disk JSON stores plus a small header.
 enum ExportService {
-    struct ExportDocument: Encodable {
+    nonisolated struct ExportDocument: Encodable {
         let exportedAt: Date
         let appVersion: String
         let wordFrequencies: [String: Int]

@@ -19,12 +19,12 @@ final class VideoStudySync {
 
     // Wire format (matches the worker + extension). `level` ∈ unknown|familiar|known;
     // `t` is epoch milliseconds.
-    private struct WireEntry: Codable { let level: String; let t: Double }
-    private struct WireBlob: Codable {
+    nonisolated private struct WireEntry: Codable { let level: String; let t: Double }
+    nonisolated private struct WireBlob: Codable {
         let words: [String: WireEntry]?
         let kanji: [String: WireEntry]?
     }
-    private struct WirePush: Codable {
+    nonisolated private struct WirePush: Codable {
         let words: [String: WireEntry]
         let kanji: [String: WireEntry]
     }

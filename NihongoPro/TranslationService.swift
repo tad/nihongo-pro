@@ -22,7 +22,7 @@ final class AIActivity {
 /// Which AI service powers the four Claude/ChatGPT calls (translate, definitions, kanji info,
 /// breakdown). Chosen in Settings; stored in UserDefaults under `aiProvider`. The whole app
 /// uses a single provider at a time — there is no per-call-type selection.
-enum AIProvider: String, CaseIterable, Identifiable {
+nonisolated enum AIProvider: String, CaseIterable, Identifiable {
     case anthropic
     case openai
 
@@ -36,12 +36,12 @@ enum AIProvider: String, CaseIterable, Identifiable {
     }
 }
 
-struct FuriganaSegment: Codable {
+nonisolated struct FuriganaSegment: Codable {
     let text: String
     let reading: String?
 }
 
-struct Word: Codable {
+nonisolated struct Word: Codable {
     let text: String
     let reading: String
     let furigana: [FuriganaSegment]
@@ -78,7 +78,7 @@ struct Word: Codable {
     }
 }
 
-extension Array where Element == Word {
+nonisolated extension Array where Element == Word {
     /// The sentence prepared for TTS: natural kanji surface forms throughout, except words
     /// pass 1 flagged (`ttsKana == true`) as having tricky readings, which are swapped to their
     /// kana so they're pronounced correctly without flattening the whole sentence to kana.
@@ -93,7 +93,7 @@ extension Array where Element == Word {
     }
 }
 
-struct KanjiInfo: Codable {
+nonisolated struct KanjiInfo: Codable {
     /// A short vocabulary word that uses the kanji, for context.
     struct Example: Codable {
         let word: String
@@ -139,7 +139,7 @@ struct KanjiInfo: Codable {
     var pinned: Bool?
 }
 
-struct TranslationResult {
+nonisolated struct TranslationResult {
     let words: [Word]
     let englishTranslation: String
     /// A more literal, grammar-following rendering shown above the natural translation.
@@ -147,7 +147,7 @@ struct TranslationResult {
     let literalTranslation: String
 }
 
-enum TranslationError: LocalizedError {
+nonisolated enum TranslationError: LocalizedError {
     case missingAPIKey
     case network(Error)
     case apiError(status: Int, message: String)
@@ -188,7 +188,9 @@ enum TranslationError: LocalizedError {
     }
 }
 
-struct TranslationService {
+/// Stateless; `nonisolated` so its prompts/constants are usable from the `@concurrent`
+/// network helpers, and its async methods run on whichever actor calls them.
+nonisolated struct TranslationService {
     private static let anthropicEndpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     private static let openAIEndpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
     private static let model = "claude-sonnet-4-6"
@@ -606,6 +608,7 @@ struct TranslationService {
         }
     }
 
+    @concurrent
     private func sendAnthropicMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
         guard let apiKey = KeychainStore.read(account: .anthropic), !apiKey.isEmpty else {
             throw TranslationError.missingAPIKey
@@ -667,6 +670,7 @@ struct TranslationService {
     /// Anthropic-only path for kanji info (mnemonics): Opus 5 with high-effort thinking,
     /// server-side refusal fallback, and a long timeout — same request shape as the
     /// kanji-study app's `KanjiInfoService`. Deliberately bypasses the provider switch.
+    @concurrent
     private func sendKanjiInfoMessage(
         userMessage: String,
         model: String = TranslationService.kanjiInfoModel
@@ -736,6 +740,7 @@ struct TranslationService {
     /// user message, and the assistant text comes back at `choices[0].message.content`. The error
     /// envelope is `{error:{message}}`, the same shape as Anthropic's, so `APIErrorEnvelope`
     /// decodes both.
+    @concurrent
     private func sendOpenAIMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
         guard let apiKey = KeychainStore.read(account: .openai), !apiKey.isEmpty else {
             throw TranslationError.missingAPIKey
@@ -865,7 +870,7 @@ struct TranslationService {
     }
 }
 
-private struct MessagesRequest: Encodable {
+nonisolated private struct MessagesRequest: Encodable {
     let model: String
     let maxTokens: Int
     let system: String
@@ -888,7 +893,7 @@ private struct MessagesRequest: Encodable {
 /// refusal fallback (beta; the recommended default for Opus 5 requests) and
 /// high-effort thinking (Terry prefers mnemonic quality over latency — the long
 /// request timeout absorbs the wait instead).
-private struct KanjiInfoMessagesRequest: Encodable {
+nonisolated private struct KanjiInfoMessagesRequest: Encodable {
     let model: String
     let maxTokens: Int
     let system: String
@@ -905,7 +910,7 @@ private struct KanjiInfoMessagesRequest: Encodable {
     }
 }
 
-private struct MessagesResponse: Decodable {
+nonisolated private struct MessagesResponse: Decodable {
     let content: [ContentBlock]
     /// "end_turn", "max_tokens", "refusal", … — the only way to tell a truncated
     /// response from a declined one, since both arrive as 200 with no text.
@@ -950,7 +955,7 @@ private struct MessagesResponse: Decodable {
     }
 }
 
-private struct OpenAIChatRequest: Encodable {
+nonisolated private struct OpenAIChatRequest: Encodable {
     let model: String
     let maxTokens: Int
     let messages: [Message]
@@ -967,7 +972,7 @@ private struct OpenAIChatRequest: Encodable {
     }
 }
 
-private struct OpenAIChatResponse: Decodable {
+nonisolated private struct OpenAIChatResponse: Decodable {
     let choices: [Choice]
 
     struct Choice: Decodable {
@@ -979,7 +984,7 @@ private struct OpenAIChatResponse: Decodable {
     }
 }
 
-private struct TranslationResponse: Decodable {
+nonisolated private struct TranslationResponse: Decodable {
     let words: [Word]
     let translation: String
     let literalTranslation: String?
@@ -991,17 +996,17 @@ private struct TranslationResponse: Decodable {
     }
 }
 
-private struct DefinitionsInput: Encodable {
+nonisolated private struct DefinitionsInput: Encodable {
     let sentence: String
     let words: [DefinitionsInputWord]
 }
 
-private struct DefinitionsInputWord: Encodable {
+nonisolated private struct DefinitionsInputWord: Encodable {
     let text: String
     let reading: String
 }
 
-private struct DefinitionsResponse: Decodable {
+nonisolated private struct DefinitionsResponse: Decodable {
     let definitions: [String?]
     let contextDependent: [Bool]?
 
@@ -1011,23 +1016,23 @@ private struct DefinitionsResponse: Decodable {
     }
 }
 
-private struct KanjiInfoBatchResponse: Decodable {
+nonisolated private struct KanjiInfoBatchResponse: Decodable {
     let kanji: [KanjiInfo]
 }
 
-private struct BreakdownInput: Encodable {
+nonisolated private struct BreakdownInput: Encodable {
     let sentence: String
     let words: [BreakdownInputWord]
     let translation: String
 }
 
-private struct BreakdownInputWord: Encodable {
+nonisolated private struct BreakdownInputWord: Encodable {
     let text: String
     let reading: String
     let definition: String?
 }
 
-private struct APIErrorEnvelope: Decodable {
+nonisolated private struct APIErrorEnvelope: Decodable {
     let error: APIError
 
     struct APIError: Decodable {

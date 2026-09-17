@@ -18,7 +18,7 @@ import Foundation
 ///
 /// Endpoint host is region-scoped: `https://{region}.tts.speech.microsoft.com`. Azure requires
 /// a `User-Agent` header on these requests or it rejects them.
-enum AzureSpeechService {
+nonisolated enum AzureSpeechService {
     /// Fallback ja-JP neural voice used before the user picks one. Nanami is always present in
     /// every region that offers Japanese.
     static let defaultVoice = "ja-JP-NanamiNeural"
@@ -76,6 +76,7 @@ enum AzureSpeechService {
     /// `AVAudioPlayer`, so the cached MP3 stays rate-neutral. A non-empty `style` (one of the
     /// voice's `StyleList` entries, e.g. `cheerful`) wraps the text in `<mstts:express-as>`,
     /// which needs the `mstts` namespace on `<speak>`.
+    @concurrent
     static func synthesize(_ text: String, voiceName: String, style: String = "", apiKey: String, region: String) async throws -> Data {
         guard !region.isEmpty else { throw AzureError.missingRegion }
         guard let url = URL(string: "https://\(region).tts.speech.microsoft.com/cognitiveservices/v1") else {
@@ -111,6 +112,7 @@ enum AzureSpeechService {
 
     /// Lists the region's neural voices and filters to `ja-JP`. Used to populate the Settings
     /// picker. (Voice availability is per-region, so this is fetched against the user's region.)
+    @concurrent
     static func fetchJapaneseVoices(apiKey: String, region: String) async throws -> [Voice] {
         guard !region.isEmpty else { throw AzureError.missingRegion }
         guard let url = URL(string: "https://\(region).tts.speech.microsoft.com/cognitiveservices/voices/list") else {

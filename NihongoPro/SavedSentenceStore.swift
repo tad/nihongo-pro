@@ -4,7 +4,7 @@ import SwiftUI
 /// A sentence the user has bookmarked, with its full parse baked in so it can be
 /// reopened offline (furigana + per-word definitions intact). `Word` is already
 /// `Codable`, so the whole record persists trivially.
-struct SavedSentence: Codable, Identifiable {
+nonisolated struct SavedSentence: Codable, Identifiable {
     let id: UUID
     let text: String
     let words: [Word]

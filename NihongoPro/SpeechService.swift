@@ -4,7 +4,7 @@ import Foundation
 import Observation
 import UIKit
 
-enum SpeechRate: String, CaseIterable, Identifiable {
+nonisolated enum SpeechRate: String, CaseIterable, Identifiable {
     case natural
     case slower
     case slowest
@@ -34,7 +34,7 @@ enum SpeechRate: String, CaseIterable, Identifiable {
 }
 
 /// Which engine synthesizes speech. Persisted as a raw string under `voiceEngine`.
-enum VoiceEngine: String, CaseIterable, Identifiable {
+nonisolated enum VoiceEngine: String, CaseIterable, Identifiable {
     case apple
     case azure
 

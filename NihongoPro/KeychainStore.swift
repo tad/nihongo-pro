@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-enum KeychainStore {
+nonisolated enum KeychainStore {
     private static let service = "com.terrydonaghe.NihongoPro"
 
     /// Distinct accounts under the same Keychain service — one per API provider.
