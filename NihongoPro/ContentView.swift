@@ -32,7 +32,7 @@ struct ContentView: View {
     @AppStorage("showFurigana") private var showFurigana: Bool = false
     @AppStorage("autoReadAloud") private var autoReadAloud: Bool = false
     @FocusState private var isInputFocused: Bool
-    @StateObject private var speechService = SpeechService()
+    @State private var speechService = SpeechService()
 
     private let translator = TranslationService()
 

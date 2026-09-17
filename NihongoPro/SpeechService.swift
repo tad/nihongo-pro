@@ -1,6 +1,7 @@
 import AVFoundation
 import CryptoKit
 import Foundation
+import Observation
 import UIKit
 
 enum SpeechRate: String, CaseIterable, Identifiable {
@@ -47,12 +48,20 @@ enum VoiceEngine: String, CaseIterable, Identifiable {
     }
 }
 
-final class SpeechService: NSObject, ObservableObject {
-    @Published private(set) var isSpeaking: Bool = false
+/// Text-to-speech for the sentence card, the word sheet and the Settings sample.
+/// `@MainActor @Observable`: views read `isSpeaking` in their bodies, and every
+/// mutation of it — including the ones triggered by AV delegate callbacks — lands
+/// on the main actor. `AVAudioPlayerDelegate` is main-actor-isolated in the SDK, so
+/// its callbacks arrive here directly; `AVSpeechSynthesizerDelegate` documents no
+/// delivery thread, so those callbacks are `nonisolated` and hop with a `Task`.
+@MainActor
+@Observable
+final class SpeechService: NSObject {
+    private(set) var isSpeaking: Bool = false
 
-    private let synthesizer = AVSpeechSynthesizer()
-    private var audioPlayer: AVAudioPlayer?
-    private var fetchTask: Task<Void, Never>?
+    @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
+    @ObservationIgnored private var audioPlayer: AVAudioPlayer?
+    @ObservationIgnored private var fetchTask: Task<Void, Never>?
 
     /// The engine selected in Settings; defaults to the on-device Apple voice.
     static var voiceEngine: VoiceEngine {
@@ -144,17 +153,16 @@ final class SpeechService: NSObject, ObservableObject {
             do {
                 let data = try await Self.azureAudioData(text: text, voice: voice, style: style, apiKey: apiKey, region: region)
                 try Task.checkCancellation()
-                await self?.startPlayback(data)
+                self?.startPlayback(data)
             } catch is CancellationError {
                 // User pressed stop; state already reset there.
             } catch {
                 // Any failure (offline, bad key/region, quota) → fall back to the on-device voice.
-                await self?.fallBackToApple(text)
+                self?.fallBackToApple(text)
             }
         }
     }
 
-    @MainActor
     private func startPlayback(_ data: Data) {
         do {
             // iPhone: `.playback` so the ring/silent switch can't mute audio.
@@ -173,7 +181,6 @@ final class SpeechService: NSObject, ObservableObject {
         }
     }
 
-    @MainActor
     private func fallBackToApple(_ text: String) {
         isSpeaking = false
         speakWithApple(text)
@@ -182,7 +189,8 @@ final class SpeechService: NSObject, ObservableObject {
     // MARK: - Premium audio cache (cachesDirectory)
 
     /// Returns cached Azure MP3 for (region, voice, style, text) or fetches + caches it.
-    private static func azureAudioData(text: String, voice: String, style: String, apiKey: String, region: String) async throws -> Data {
+    /// Nonisolated so the network round-trip and the cache read/write stay off the main actor.
+    nonisolated private static func azureAudioData(text: String, voice: String, style: String, apiKey: String, region: String) async throws -> Data {
         let key = "azure|\(region)|\(voice)|\(style)|\(text)"
         return try await cachedAudio(key: key, subdir: "AzureAudio") {
             try await AzureSpeechService.synthesize(text, voiceName: voice, style: style, apiKey: apiKey, region: region)
@@ -190,7 +198,7 @@ final class SpeechService: NSObject, ObservableObject {
     }
 
     /// Generic disk cache: returns the MP3 at `key`/`subdir` or runs `fetch`, caching the result.
-    private static func cachedAudio(key: String, subdir: String, fetch: () async throws -> Data) async throws -> Data {
+    nonisolated private static func cachedAudio(key: String, subdir: String, fetch: () async throws -> Data) async throws -> Data {
         let url = cacheURL(key: key, subdir: subdir)
         if let cached = try? Data(contentsOf: url) {
             return cached
@@ -200,7 +208,7 @@ final class SpeechService: NSObject, ObservableObject {
         return data
     }
 
-    private static func cacheURL(key: String, subdir: String) -> URL {
+    nonisolated private static func cacheURL(key: String, subdir: String) -> URL {
         let digest = SHA256.hash(data: Data(key.utf8))
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
@@ -235,31 +243,31 @@ final class SpeechService: NSObject, ObservableObject {
 }
 
 extension SpeechService: AVSpeechSynthesizerDelegate {
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.isSpeaking = true }
+    // The synthesizer's delegate has no documented delivery thread, so these are
+    // nonisolated and hop onto the main actor (a `Task`, not `assumeIsolated`, so a
+    // callback on another queue can never trap).
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = true }
     }
 
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.isSpeaking = false }
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = false }
     }
 
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.isSpeaking = false }
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = false }
     }
 }
 
 extension SpeechService: AVAudioPlayerDelegate {
+    // `AVAudioPlayerDelegate` is main-actor-isolated in the SDK, so these run here.
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        DispatchQueue.main.async {
-            self.isSpeaking = false
-            self.audioPlayer = nil
-        }
+        isSpeaking = false
+        audioPlayer = nil
     }
 
     func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-        DispatchQueue.main.async {
-            self.isSpeaking = false
-            self.audioPlayer = nil
-        }
+        isSpeaking = false
+        audioPlayer = nil
     }
 }

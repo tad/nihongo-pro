@@ -2,7 +2,7 @@ import SwiftUI
 
 struct StatsView: View {
     let translator: TranslationService
-    @ObservedObject var speechService: SpeechService
+    let speechService: SpeechService
     @Environment(\.dismiss) private var dismiss
 
     @State private var wordCounts: [String: Int] = [:]

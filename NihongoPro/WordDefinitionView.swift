@@ -3,7 +3,7 @@ import SwiftUI
 struct WordDefinitionView: View {
     let word: Word
     let translator: TranslationService
-    @ObservedObject var speechService: SpeechService
+    let speechService: SpeechService
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedKanji: KanjiSelection?
