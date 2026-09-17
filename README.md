@@ -36,7 +36,7 @@ Translation and furigana are powered by your choice of **Claude** (Anthropic) or
 
 ## Requirements
 
-- Xcode 26 or newer
+- Xcode 27 or newer (the code uses Swift 6.4 features)
 - An iPad or iPhone (or simulator) running iPadOS / iOS 26 or newer
 - An [Anthropic API key](https://console.anthropic.com/) (an [OpenAI key](https://platform.openai.com/api-keys) works as an optional fallback provider) — see [API keys](#api-keys)
 - An Apple ID for code signing. A free personal team builds and runs the app, but **iCloud sync requires a paid Apple Developer Program membership** (the iCloud/CloudKit capability isn't available on free teams). Without it, the app still works fully — just per-device with no sync.

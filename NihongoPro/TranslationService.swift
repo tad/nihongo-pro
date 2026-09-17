@@ -596,8 +596,8 @@ struct TranslationService {
     /// system/user prompts and return the model's text, so the four public calls and all the
     /// JSON-extraction/parsing downstream are provider-agnostic.
     private func sendMessage(systemPrompt: String, userMessage: String, maxTokens: Int) async throws -> String {
-        await MainActor.run { AIActivity.shared.begin() }
-        defer { Task { @MainActor in AIActivity.shared.end() } }
+        await AIActivity.shared.begin()
+        defer { await AIActivity.shared.end() }
         switch Self.provider {
         case .anthropic:
             return try await sendAnthropicMessage(systemPrompt: systemPrompt, userMessage: userMessage, maxTokens: maxTokens)
@@ -674,8 +674,8 @@ struct TranslationService {
         guard let apiKey = KeychainStore.read(account: .anthropic), !apiKey.isEmpty else {
             throw TranslationError.missingAPIKey
         }
-        await MainActor.run { AIActivity.shared.begin() }
-        defer { Task { @MainActor in AIActivity.shared.end() } }
+        await AIActivity.shared.begin()
+        defer { await AIActivity.shared.end() }
 
         var request = URLRequest(url: Self.anthropicEndpoint, timeoutInterval: Self.kanjiInfoTimeout)
         request.httpMethod = "POST"
@@ -1057,9 +1057,9 @@ final class KanjiInfoPrefetcher {
     private static let log = Logger(subsystem: "com.terrydonaghe.NihongoPro", category: "prefetch")
 
     private let translator = TranslationService()
-    /// Kanji with a request currently in flight, so `ensure` can wait on the
-    /// prefetch instead of firing a duplicate request.
-    private var inFlight: Set<Character> = []
+    /// Kanji with a batch request currently in flight, mapped to that batch's task
+    /// so `ensure` can await the prefetch instead of firing a duplicate request.
+    private var inFlight: [Character: Task<Void, any Error>] = [:]
     private var queue: [Character] = []
     private var queued: Set<Character> = []
     private var worker: Task<Void, Never>?
@@ -1075,7 +1075,7 @@ final class KanjiInfoPrefetcher {
     /// at fetch time, not here, so enqueueing liberally is cheap.
     func enqueue(_ kanji: [Character], priority: Bool = false) {
         guard hasAPIKey else { return }
-        let fresh = kanji.filter { $0.isKanji && !queued.contains($0) && !inFlight.contains($0) }
+        let fresh = kanji.filter { $0.isKanji && !queued.contains($0) && inFlight[$0] == nil }
         if !fresh.isEmpty {
             queued.formUnion(fresh)
             if priority {
@@ -1106,10 +1106,10 @@ final class KanjiInfoPrefetcher {
         if let cached = await DefinitionCache.shared.kanjiInfo(for: kanji) {
             return cached
         }
-        if inFlight.contains(kanji) {
-            while inFlight.contains(kanji) {
-                try await Task.sleep(for: .milliseconds(250))
-            }
+        if let batch = inFlight[kanji] {
+            // Wait for the prefetch batch that includes this kanji, then re-read the
+            // cache; a failed batch just falls through to a direct fetch below.
+            _ = try? await batch.value
             if let cached = await DefinitionCache.shared.kanjiInfo(for: kanji) {
                 return cached
             }
@@ -1130,15 +1130,18 @@ final class KanjiInfoPrefetcher {
             while batch.count < Self.batchSize, !queue.isEmpty {
                 let kanji = queue.removeFirst()
                 queued.remove(kanji)
-                if inFlight.contains(kanji) { continue }
+                if inFlight[kanji] != nil { continue }
                 if await DefinitionCache.shared.kanjiInfo(for: kanji) != nil { continue }
                 batch.append(kanji)
             }
             guard !batch.isEmpty else { continue }
-            inFlight.formUnion(batch)
-            defer { inFlight.subtract(batch) }
-            do {
+            let batchTask = Task { [translator, batch] in
                 _ = try await translator.fetchKanjiInfoBatch(batch)
+            }
+            for kanji in batch { inFlight[kanji] = batchTask }
+            defer { for kanji in batch { inFlight[kanji] = nil } }
+            do {
+                try await batchTask.value
                 Self.log.info("Prefetched info for \(batch.count) kanji, \(self.queue.count) queued")
             } catch TranslationError.missingAPIKey {
                 queue.removeAll()

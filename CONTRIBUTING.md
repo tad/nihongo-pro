@@ -6,7 +6,7 @@ Thanks for your interest! A few things to know up front:
 
 ## Building
 
-1. Open `NihongoPro.xcodeproj` in Xcode 26 or newer.
+1. Open `NihongoPro.xcodeproj` in Xcode 27 or newer (Swift 6.4).
 2. Select the **NihongoPro** target → **Signing & Capabilities** → pick **your own Team**. No team is committed in the project (on purpose) — the build fails with a signing error until you set one. Please don't include a `DEVELOPMENT_TEAM` change in any PR.
 3. Run on an iPad or iPhone simulator running OS 26+.
 

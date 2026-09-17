@@ -7,7 +7,7 @@ import SwiftUI
 struct KanjiStrokeView: View {
     let svg: String
 
-    @StateObject private var animator = StrokeAnimator()
+    @State private var animator = StrokeAnimator()
     @State private var strokes: [Stroke] = []
     @State private var parseError: Bool = false
 
@@ -71,13 +71,14 @@ struct Stroke {
 }
 
 @MainActor
-final class StrokeAnimator: ObservableObject {
-    @Published private(set) var progress: [CGFloat] = []
-    @Published private(set) var currentStrokeIndex: Int = 0
-    @Published private(set) var isPlaying: Bool = false
+@Observable
+final class StrokeAnimator {
+    private(set) var progress: [CGFloat] = []
+    private(set) var currentStrokeIndex: Int = 0
+    private(set) var isPlaying: Bool = false
 
-    private var strokes: [Stroke] = []
-    private var task: Task<Void, Never>?
+    @ObservationIgnored private var strokes: [Stroke] = []
+    @ObservationIgnored private var task: Task<Void, Never>?
 
     func play(strokes: [Stroke]) {
         cancel()
@@ -105,8 +106,7 @@ final class StrokeAnimator: ObservableObject {
                 withAnimation(.linear(duration: duration)) {
                     self.progress[index] = 1.0
                 }
-                let nanos = UInt64((duration + 0.15) * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: nanos)
+                try? await Task.sleep(for: .seconds(duration + 0.15))
                 if Task.isCancelled { return }
             }
             self.isPlaying = false
@@ -141,7 +141,7 @@ private struct StrokeShape: Shape {
 
 private struct StrokeCanvas: View {
     let strokes: [Stroke]
-    @ObservedObject var animator: StrokeAnimator
+    let animator: StrokeAnimator
 
     private static let canvasUnit: CGFloat = 109
     private static let strokeStyle = StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)

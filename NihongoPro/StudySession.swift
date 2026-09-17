@@ -15,6 +15,9 @@ final class StudySession: Identifiable {
 
     private var pomodoroEndDate: Date = .distantFuture
     private var timerTask: Task<Void, Never>?
+    /// The end-of-work chime sequence; deliberately not cancelled by `end()` so the
+    /// tones finish even if the user dismisses the session mid-chime.
+    private var chimeTask: Task<Void, Never>?
     private let workDuration: TimeInterval = 25 * 60
     private let breakDuration: TimeInterval = 5 * 60
     /// `1005` is the longer, more attention-grabbing system "alarm" tone (vs. the
@@ -46,7 +49,7 @@ final class StudySession: Identifiable {
         isOnBreak = true
         pomodoroEndDate = Date().addingTimeInterval(breakDuration)
         pomodoroDisplay = Self.formatTime(breakDuration)
-        Self.playChime(remaining: Self.chimeRepeats)
+        playChimes()
     }
 
     /// The work + break cycle is done — stop the timer and signal `ContentView` to
@@ -58,12 +61,24 @@ final class StudySession: Identifiable {
         timerTask = nil
     }
 
-    /// Plays the chime `remaining` times back-to-back, chaining on each play's
-    /// completion so the tones don't overlap.
-    private static func playChime(remaining: Int) {
-        guard remaining > 0 else { return }
-        AudioServicesPlaySystemSoundWithCompletion(chimeSoundID) {
-            playChime(remaining: remaining - 1)
+    /// Plays the chime `chimeRepeats` times back-to-back. Each play is awaited to
+    /// completion so the tones don't overlap; the C completion block only resumes a
+    /// continuation, so nothing re-enters this main-actor class from a foreign thread.
+    private func playChimes() {
+        chimeTask?.cancel()
+        chimeTask = Task {
+            for _ in 0..<Self.chimeRepeats {
+                if Task.isCancelled { return }
+                await Self.playSystemSoundOnce(Self.chimeSoundID)
+            }
+        }
+    }
+
+    private static func playSystemSoundOnce(_ soundID: SystemSoundID) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            AudioServicesPlaySystemSoundWithCompletion(soundID) {
+                continuation.resume()
+            }
         }
     }
 
@@ -73,7 +88,12 @@ final class StudySession: Identifiable {
             while !Task.isCancelled {
                 guard let self else { return }
                 self.tick()
-                try? await Task.sleep(for: .milliseconds(500))
+                // Wake just past the next whole-second boundary of the countdown, so
+                // the mm:ss display changes exactly once per wake (it used to poll
+                // every 500 ms for a value that changes once a second).
+                let remaining = self.pomodoroEndDate.timeIntervalSinceNow
+                let fraction = remaining - floor(remaining)
+                try? await Task.sleep(for: .seconds(max(0.05, fraction + 0.01)))
             }
         }
     }
@@ -93,6 +113,6 @@ final class StudySession: Identifiable {
 
     private static func formatTime(_ interval: TimeInterval) -> String {
         let total = max(0, Int(ceil(interval)))
-        return String(format: "%d:%02d", total / 60, total % 60)
+        return Duration.seconds(total).formatted(.time(pattern: .minuteSecond))
     }
 }
