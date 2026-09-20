@@ -31,10 +31,10 @@
 		FA00000000000000000000CE /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CD /* StatsView.swift */; };
 		FA00000000000000000000D3 /* ActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000CF /* ActivityTracker.swift */; };
 		FA00000000000000000000D5 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D4 /* ExportService.swift */; };
+		FA00000000000000000000D7 /* Krad.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D6 /* Krad.swift */; };
 		FA00000000000000000000D9 /* AzureSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D8 /* AzureSpeechService.swift */; };
 		FA00000000000000000000DB /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DA /* SyncCoordinator.swift */; };
 		FA00000000000000000000DE /* VideoStudySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DD /* VideoStudySync.swift */; };
-		FA00000000000000000000D7 /* Krad.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000D6 /* Krad.swift */; };
 		FA00000000000000000000E0 /* KradKeywords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000DF /* KradKeywords.swift */; };
 		FA00000000000000000000E5 /* MnemonicEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000E4 /* MnemonicEditorView.swift */; };
 		FA00000000000000000000E7 /* krad_decompositions.json in Resources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000E6 /* krad_decompositions.json */; };
@@ -48,6 +48,7 @@
 		FA0000000000000000000121 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000120 /* AppSettings.swift */; };
 		FA0000000000000000000123 /* PronunciationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000122 /* PronunciationService.swift */; };
 		FA0000000000000000000125 /* PronunciationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000124 /* PronunciationTests.swift */; };
+		FA0000000000000000000129 /* SelectableTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000128 /* SelectableTextTests.swift */; };
 		FA0000000000000000000127 /* JSONStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000126 /* JSONStoreTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -88,11 +89,11 @@
 		FA00000000000000000000CD /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000CF /* ActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D4 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
+		FA00000000000000000000D6 /* Krad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Krad.swift; sourceTree = "<group>"; };
 		FA00000000000000000000D8 /* AzureSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureSpeechService.swift; sourceTree = "<group>"; };
 		FA00000000000000000000DA /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		FA00000000000000000000DC /* NihongoPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NihongoPro.entitlements; sourceTree = "<group>"; };
 		FA00000000000000000000DD /* VideoStudySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStudySync.swift; sourceTree = "<group>"; };
-		FA00000000000000000000D6 /* Krad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Krad.swift; sourceTree = "<group>"; };
 		FA00000000000000000000DF /* KradKeywords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KradKeywords.swift; sourceTree = "<group>"; };
 		FA00000000000000000000E4 /* MnemonicEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MnemonicEditorView.swift; sourceTree = "<group>"; };
 		FA00000000000000000000E6 /* krad_decompositions.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = krad_decompositions.json; sourceTree = "<group>"; };
@@ -107,6 +108,7 @@
 		FA0000000000000000000120 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		FA0000000000000000000122 /* PronunciationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationService.swift; sourceTree = "<group>"; };
 		FA0000000000000000000124 /* PronunciationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationTests.swift; sourceTree = "<group>"; };
+		FA0000000000000000000128 /* SelectableTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableTextTests.swift; sourceTree = "<group>"; };
 		FA0000000000000000000126 /* JSONStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -200,6 +202,7 @@
 				FA00000000000000000000FA /* JapaneseWordFilterTests.swift */,
 				FA0000000000000000000126 /* JSONStoreTests.swift */,
 				FA0000000000000000000124 /* PronunciationTests.swift */,
+				FA0000000000000000000128 /* SelectableTextTests.swift */,
 			);
 			path = NihongoProTests;
 			sourceTree = "<group>";
@@ -207,23 +210,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		FA00000000000000000000F1 /* NihongoPro */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = FA0000000000000000000112 /* Build configuration list for PBXNativeTarget "NihongoPro" */;
-			buildPhases = (
-				FA00000000000000000000E1 /* Sources */,
-				FA00000000000000000000E2 /* Frameworks */,
-				FA00000000000000000000E3 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = NihongoPro;
-			productName = NihongoPro;
-			productReference = FA00000000000000000000C1 /* NihongoPro.app */;
-			productType = "com.apple.product-type.application";
-		};
 		FA00000000000000000000EF /* NihongoProTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FA0000000000000000000113 /* Build configuration list for PBXNativeTarget "NihongoProTests" */;
@@ -242,6 +228,23 @@
 			productReference = FA00000000000000000000E8 /* NihongoProTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		FA00000000000000000000F1 /* NihongoPro */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FA0000000000000000000112 /* Build configuration list for PBXNativeTarget "NihongoPro" */;
+			buildPhases = (
+				FA00000000000000000000E1 /* Sources */,
+				FA00000000000000000000E2 /* Frameworks */,
+				FA00000000000000000000E3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NihongoPro;
+			productName = NihongoPro;
+			productReference = FA00000000000000000000C1 /* NihongoPro.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -252,12 +255,12 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
-					FA00000000000000000000F1 = {
-						CreatedOnToolsVersion = 26.0;
-					};
 					FA00000000000000000000EF = {
 						CreatedOnToolsVersion = 26.0;
 						TestTargetID = FA00000000000000000000F1;
+					};
+					FA00000000000000000000F1 = {
+						CreatedOnToolsVersion = 26.0;
 					};
 				};
 			};
@@ -352,6 +355,7 @@
 				FA00000000000000000000FB /* JapaneseWordFilterTests.swift in Sources */,
 				FA0000000000000000000127 /* JSONStoreTests.swift in Sources */,
 				FA0000000000000000000125 /* PronunciationTests.swift in Sources */,
+				FA0000000000000000000129 /* SelectableTextTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -511,9 +515,9 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -546,9 +550,9 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -567,9 +571,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.terrydonaghe.NihongoProTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -589,9 +593,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.terrydonaghe.NihongoProTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -183,8 +183,7 @@ struct KanjiDetailView: View {
                                 .textSelection(.enabled)
                             Text("\(example.reading) · \(example.meaning)")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
+                                .selectableLabel(.secondary)
                         }
                     }
                 }
@@ -199,9 +198,8 @@ struct KanjiDetailView: View {
                 if let mnemonic = info.mnemonic, !mnemonic.isEmpty {
                     Text(mnemonic)
                         .font(.callout)
-                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
+                        .selectableLabel(.secondary)
                 } else if let note = info.note, !note.isEmpty {
                     // Pre-mnemonic cache entries still carry the old memorable note.
                     Text(note)

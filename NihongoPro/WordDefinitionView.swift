@@ -30,8 +30,7 @@ struct WordDefinitionView: View {
                                     if word.reading != word.text {
                                         Text(word.reading)
                                             .font(.title2)
-                                            .foregroundStyle(.secondary)
-                                            .textSelection(.enabled)
+                                            .selectableLabel(.secondary)
                                     }
                                 }
 

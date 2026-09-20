@@ -29,7 +29,40 @@ extension PronunciationScorer.Outcome {
     }
 }
 
+/// The dimming level for selectable text — see `View.selectableLabel(_:)`.
+enum LabelLevel {
+    case secondary
+    case tertiary
+
+    /// `secondaryLabel` / `tertiaryLabel` are the label color at 60 % / 30 % alpha in
+    /// both appearances, so the same opacity on primary text reads identically.
+    var opacity: Double {
+        switch self {
+        case .secondary: return 0.6
+        case .tertiary: return 0.3
+        }
+    }
+}
+
 extension View {
+    /// `.textSelection(.enabled)` plus secondary/tertiary dimming for a `Text`.
+    ///
+    /// iOS 27 draws **nothing** for a selectable `Text` that carries any foreground
+    /// style — `.foregroundStyle(.secondary)` on the text itself, a style inherited
+    /// from a container, or a `foregroundColor` run inside its `AttributedString` —
+    /// when it sits on a material background, i.e. inside every `cardChrome` card
+    /// (verified on the iOS 27.0 simulator; on a plain background it still draws,
+    /// and iOS 26 is unaffected). The definition sheet's reading line and the
+    /// revealed translation vanished this way. Opacity is applied after selection
+    /// instead, which renders everywhere and looks the same as the hierarchical
+    /// styles. Use this, never `.foregroundStyle`, on anything selectable —
+    /// `SelectableTextTests` renders the pattern on a card and enforces the rule.
+    func selectableLabel(_ level: LabelLevel) -> some View {
+        self
+            .textSelection(.enabled)
+            .opacity(level.opacity)
+    }
+
     func cardChrome(cornerRadius: CGFloat = 20, padding: CGFloat = 24) -> some View {
         self
             .padding(padding)

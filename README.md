@@ -123,6 +123,7 @@ A calm Japanese-inspired palette: deep indigo (kon-iro) for the primary accent, 
 ## Tech stack
 
 - SwiftUI (universal — iPadOS / iOS 26+), Swift 6 language mode with strict concurrency, no third-party dependencies; the iPhone layout is gated on device idiom so the iPad UI is unchanged
+- iOS 27 note: selectable text that carries a foreground style is drawn invisible on iOS 27 when it sits on a material card (the reading on the definition card and the revealed translation disappeared), so every selectable secondary/tertiary line uses `selectableLabel(_:)` in `Theme.swift`, which dims with opacity instead. Keep using it for any new selectable text — `SelectableTextTests` renders the pattern through a real window and also fails if a foreground style is put back on selectable text.
 - Anthropic Messages API (`claude-sonnet-4-6`) or OpenAI Chat Completions API (`gpt-4.1`) via `URLSession` — selectable in Settings
 - iOS Keychain (`Security` framework) for API key storage (Anthropic + OpenAI + optional Azure Speech)
 - `AVSpeechSynthesizer` (`AVFoundation`) for on-device Japanese TTS, with an optional [Azure Speech](https://portal.azure.com) neural-voice path (`AVAudioPlayer` + on-device MP3 cache)

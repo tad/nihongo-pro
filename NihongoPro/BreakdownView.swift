@@ -18,7 +18,6 @@ struct BreakdownView: View {
         case .heading(let level, let text):
             Text(attributed(text))
                 .font(headingFont(level: level))
-                .foregroundStyle(.primary)
                 .padding(.top, level <= 2 ? 12 : 4)
         case .paragraph(let text):
             Text(attributed(text))
@@ -27,9 +26,11 @@ struct BreakdownView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .bullet(let text):
             HStack(alignment: .firstTextBaseline, spacing: 10) {
+                // Opacity, not `.foregroundStyle`: the whole view is selectable and
+                // iOS 27 hides styled selectable text (see `selectableLabel`).
                 Text("•")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .opacity(LabelLevel.secondary.opacity)
                 Text(attributed(text))
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)

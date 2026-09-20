@@ -409,8 +409,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(englishTranslation)
                 .font(.title2)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+                .selectableLabel(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -418,8 +417,7 @@ struct ContentView: View {
                 if isLiteralRevealed {
                     Text(literalTranslation)
                         .font(.title3)
-                        .foregroundStyle(.tertiary)
-                        .textSelection(.enabled)
+                        .selectableLabel(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
