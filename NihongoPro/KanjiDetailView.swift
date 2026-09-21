@@ -54,11 +54,11 @@ struct KanjiDetailView: View {
 
                         familiarityPicker
 
-                        HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 12) {
                             NihongoLookupLink(kind: .kanji, query: String(kanji))
                             JishoLookupLink(kind: .kanji, query: String(kanji))
-                            Spacer()
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                         strokeOrderSection
                     }

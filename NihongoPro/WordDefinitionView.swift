@@ -61,11 +61,11 @@ struct WordDefinitionView: View {
 
                             familiarityPicker
 
-                            HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 12) {
                                 NihongoLookupLink(kind: .word, query: word.text)
                                 JishoLookupLink(kind: .word, query: word.text)
-                                Spacer()
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .cardChrome()
 
